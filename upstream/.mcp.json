@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "tanstack": {
+      "type": "http",
+      "url": "https://tanstack.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TANSTACK_API_KEY}"
+      }
+    },
+    "shadcn": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "shadcn@latest",
+        "mcp"
+      ],
+      "env": {}
+    },
+    "lucide-icons": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "lucide-icons-mcp",
+        "--stdio"
+      ],
+      "env": {}
+    }
+  }
+}

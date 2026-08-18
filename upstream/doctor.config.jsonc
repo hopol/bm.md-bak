@@ -1,0 +1,21 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "rules": [
+      "react-doctor/require-pnpm-hardening"
+    ],
+    "files": [
+      ".edgeone/**",
+      ".output/**",
+      "bin/**",
+      "preset/**",
+      "src/cli/index.ts",
+      "src/components/ui/**",
+      "src/hooks/use-mobile.ts",
+      "src/routeTree.gen.ts",
+      "src/themes/code-theme/index.ts",
+      "src/themes/markdown-style/index.ts",
+      "**/*.gen.ts"
+    ]
+  }
+}

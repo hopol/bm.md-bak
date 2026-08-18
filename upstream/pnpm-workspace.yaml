@@ -1,0 +1,16 @@
+allowBuilds:
+  core-js: true
+  esbuild: true
+  msw: true
+  sharp: true
+  simple-git-hooks: true
+  workerd: true
+
+catalogMode: manual
+
+overrides:
+  glob: 11.1.0
+  serialize-javascript: 7.0.5
+  workbox-build: 7.4.1
+
+shellEmulator: true
