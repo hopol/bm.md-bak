@@ -2,7 +2,7 @@ import { Wand } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { editorCommandConfig } from '@/config'
-import { formatMarkdown } from '@/lib/actions'
+import { formatMarkdown } from '@/lib/actions/format'
 import { trackEvent } from '@/lib/analytics'
 import { isFileContentReady, useFilesStore } from '@/stores/files'
 

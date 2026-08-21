@@ -218,22 +218,19 @@ curl -X POST https://bm.md/api/markdown/lint \
 
 ### 排版样式 (markdownStyle)
 
-| ID                  | 名称              | 风格描述                   |
-| ------------------- | ----------------- | -------------------------- |
-| `ayu-light`         | Ayu Light         | 清新淡雅的浅色主题（默认） |
-| `bauhaus`           | Bauhaus           | 包豪斯风格，几何与功能主义 |
-| `blueprint`         | Blueprint         | 蓝图风格，工程设计感       |
-| `botanical`         | Botanical         | 植物园风格，自然柔和       |
-| `green-simple`      | GreenSimple       | 绿色简约风格               |
-| `maximalism`        | Maximalism        | 极繁主义，丰富装饰         |
-| `neo-brutalism`     | Neo-Brutalism     | 新野兽派，大胆对比         |
-| `newsprint`         | Newsprint         | 报纸印刷风格               |
-| `organic`           | Organic           | 有机自然风格               |
-| `playful-geometric` | Playful Geometric | 活泼几何图形风格           |
-| `professional`      | Professional      | 专业商务风格               |
-| `retro`             | Retro             | 复古怀旧风格               |
-| `sketch`            | Sketch            | 手绘素描风格               |
-| `terminal`          | Terminal          | 终端/命令行风格            |
+| ID              | 名称          | 风格描述                   |
+| --------------- | ------------- | -------------------------- |
+| `ayu-light`     | Ayu Light     | 清新淡雅的浅色主题（默认） |
+| `bauhaus`       | Bauhaus       | 包豪斯风格，几何与功能主义 |
+| `blueprint`     | Blueprint     | 蓝图风格，工程设计感       |
+| `botanical`     | Botanical     | 植物园风格，自然柔和       |
+| `neo-brutalism` | Neo-Brutalism | 新野兽派，大胆对比         |
+| `newsprint`     | Newsprint     | 报纸印刷风格               |
+| `organic`       | Organic       | 有机自然风格               |
+| `professional`  | Professional  | 专业商务风格               |
+| `retro`         | Retro         | 复古怀旧风格               |
+| `sketch`        | Sketch        | 手绘素描风格               |
+| `terminal`      | Terminal      | 终端/命令行风格            |
 
 ### 代码主题 (codeTheme)
 

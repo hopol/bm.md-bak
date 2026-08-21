@@ -1,8 +1,9 @@
 import { toast } from 'sonner'
-import { importFilesAsNewTabs, isImageFile } from '@/lib/file-importer'
+import { DOCUMENT_FILE_ACCEPT } from '@/lib/document/files'
+import { importFilesAsNewTabs, partitionImportFiles } from '@/lib/file-importer'
 import { MARKDOWN_FILE_ACCEPT } from '@/lib/markdown-file'
 
-const ACCEPT_TYPES = `text/html,text/markdown,${MARKDOWN_FILE_ACCEPT},image/*`
+const ACCEPT_TYPES = `text/html,text/markdown,${MARKDOWN_FILE_ACCEPT},${DOCUMENT_FILE_ACCEPT},image/*`
 
 function triggerImportDialog(): Promise<File[]> {
   return new Promise((resolve) => {
@@ -47,12 +48,10 @@ export async function handleImportFiles() {
   if (!files.length)
     return
 
-  const textFiles = files.filter(f => !isImageFile(f))
-  const imageFiles = files.filter(isImageFile)
+  const { nonImageFiles, imageFiles } = partitionImportFiles(files)
 
-  if (textFiles.length > 0) {
-    await importFilesAsNewTabs(textFiles)
-    return
+  if (nonImageFiles.length > 0) {
+    await importFilesAsNewTabs(nonImageFiles)
   }
 
   if (imageFiles.length > 0) {
@@ -61,7 +60,7 @@ export async function handleImportFiles() {
     )
     const view = getImportEditorView()
     if (view) {
-      await importFilesToEditor(view, imageFiles, { insertPos: view.state.selection.main.anchor })
+      await importFilesToEditor(view, imageFiles, view.state.selection.main.anchor)
     }
     else {
       toast.error('编辑器尚未就绪')

@@ -78,7 +78,8 @@
 #bm-md h1 {
   font-size: 1.75em;
   color: #ffffff;
-  background: linear-gradient(to right, #000080, #1084d0);
+  background-color: #000080;
+  background-image: linear-gradient(to right, #000080, #1084d0);
   padding: 0.3em 0.5em;
   border: 2px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
@@ -445,14 +446,10 @@
   background-color: #ffffff;
 }
 
-/* 表头首行样式 - 渐变应用于整行 */
-#bm-md thead tr {
+/* 表头首行样式 */
+#bm-md tr:first-child th {
   background-color: #000080;
-  background: linear-gradient(to right, #000080, #1084d0);
-}
-
-#bm-md thead th {
-  background-color: transparent;
+  background-image: linear-gradient(to right, #000080, #1084d0);
   color: #ffffff;
 }
 

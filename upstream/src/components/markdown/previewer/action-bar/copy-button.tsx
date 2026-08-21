@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { platformConfig } from '@/config'
 import WechatIcon from '@/icons/wechat'
-import { copyPlatform } from '@/lib/actions'
+import { copyPlatform } from '@/lib/actions/copy-platform'
 import { usePreviewStore } from '@/stores/preview'
 import { usePlatformCopy } from './use-platform-copy'
 

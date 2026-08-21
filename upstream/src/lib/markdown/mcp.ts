@@ -1,7 +1,7 @@
-import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { ToolCallback } from '@modelcontextprotocol/server'
 import type * as z from 'zod'
 import type { MarkdownTool } from './definitions'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { name, version } from '@/package.json'
 import { markdownTools, runMarkdownTool } from './definitions'
 

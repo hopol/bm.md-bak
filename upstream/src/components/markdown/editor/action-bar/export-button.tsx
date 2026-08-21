@@ -2,7 +2,7 @@ import { FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { editorCommandConfig } from '@/config'
-import { exportMarkdown } from '@/lib/actions'
+import { exportMarkdown } from '@/lib/actions/export-markdown'
 import { trackEvent } from '@/lib/analytics'
 import { isFileContentReady, useFilesStore } from '@/stores/files'
 

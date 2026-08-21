@@ -1,7 +1,7 @@
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { MotionConfig } from 'motion/react'
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
 
@@ -11,9 +11,14 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { appConfig } from '@/config'
 import { env } from '@/env'
-import { initClientIntegrations } from '@/lib/client-integrations'
+import { logSafeError } from '@/lib/log-safe-error'
 
 import appCss from '../styles.css?url'
+
+const initClientIntegrations = createClientOnlyFn(async () => {
+  const integrations = await import('@/lib/client-integrations.client')
+  return integrations.initClientIntegrations()
+})
 
 // Google Fonts URL - 仅加载 Logo 使用的字符
 const fontUrl = `https://fonts.googleapis.cn/css2?family=Doto:wght@700&display=swap&text=${encodeURIComponent(['bm.md', '404'].join(''))}`
@@ -81,7 +86,9 @@ function RootDocument() {
   const analyticsEnabled = analytics.scriptUrl && analytics.siteId
 
   useEffect(() => {
-    initClientIntegrations()
+    void initClientIntegrations().catch((error) => {
+      logSafeError('[bm.md] 客户端初始化失败', error)
+    })
   }, [])
 
   return (
@@ -90,18 +97,16 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
-        <MotionConfig reducedMotion="user">
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableColorScheme
-          >
-            <TooltipProvider>
-              <Outlet />
-              <ThemeColorMeta />
-            </TooltipProvider>
-          </ThemeProvider>
-        </MotionConfig>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableColorScheme
+        >
+          <TooltipProvider>
+            <Outlet />
+            <ThemeColorMeta />
+          </TooltipProvider>
+        </ThemeProvider>
         {env.DEV && (
           <TanStackDevtools
             config={{ position: 'bottom-right' }}

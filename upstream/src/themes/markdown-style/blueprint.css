@@ -76,7 +76,7 @@
 
 #bm-md h3::before {
   content: '#';
-  color: #93c5fd;
+  color: #60a5fa;
   margin-right: 0.3em;
   font-weight: 400;
 }
@@ -314,7 +314,6 @@
   border-left: 3px solid #3b82f6;
   background-color: #faf9f6;
   color: #334155;
-  font-style: italic;
 }
 
 #bm-md blockquote p {
@@ -350,7 +349,7 @@
   padding: 0.875em 1em;
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-top: 3px solid #3b82f6;
+  border-top: 2px solid #3b82f6;
   overflow-x: auto;
 }
 

@@ -337,7 +337,6 @@
   padding: 1em 1.2em;
   background-color: #f0ede6;
   border-left: 3px solid #2e5d4e;
-  border-right: 1px solid #d4cfc6;
   color: #3a3530;
 }
 
@@ -465,7 +464,6 @@
   border: none;
   height: 1px;
   background-color: #2e5d4e;
-  background: linear-gradient(90deg, transparent 0%, #d4cfc6 15%, #2e5d4e 50%, #d4cfc6 85%, transparent 100%);
 }
 
 /* ============================================

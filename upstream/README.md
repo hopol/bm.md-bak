@@ -13,11 +13,14 @@
 - 📊 **图表与信息图** - 支持 Mermaid 与 AntV Infographic
 - 🖼️ **图片导出** - 下载 JPEG 或复制 PNG 图片
 - 📄 **PDF 与打印** - 支持高质量分页 PDF 导出和直接打印
+- 📥 **文档导入** - 支持 Markdown、HTML，以及常见 Office、OpenDocument、可提取文本的 PDF、RTF、CSV、EPUB 文档转换为 Markdown
 - 🌓 **明暗模式** - 支持浅色、深色界面切换
 - 🔌 **开发者友好** - 提供 CLI、REST API 和 MCP 协议集成
 - ⌨️ **快捷操作** - 命令面板 + 全局快捷键，高效操作
 
 ## 🚀 快速开始
+
+前置条件：Node.js >= 20、pnpm 11.11.0。
 
 ```bash
 # 克隆项目
@@ -32,6 +35,22 @@ pnpm dev
 ```
 
 访问 http://localhost:2663 开始使用。
+
+本地生产构建与预览：
+
+```bash
+pnpm build
+pnpm preview
+```
+
+### 环境变量
+
+环境变量均为可选配置，可参考 `.env.example`：
+
+- `VITE_APP_URL`、`VITE_API_URL`：客户端可用的应用与 API 地址。
+- `ANALYTICS_SCRIPT_URL`、`ANALYTICS_SITE_ID`：服务端读取的统计分析配置。
+- `S3_ENDPOINT`、`S3_ACCESS_KEY_ID`、`S3_SECRET_ACCESS_KEY`：三项均配置时启用 S3；`S3_BUCKET`、`S3_REGION`、`S3_PUBLIC_BASE_URL` 用于配置存储目标与公开访问地址。
+- `DC_UPLOAD_URL`：可选的 DC 图床上传地址。S3 启用所需配置不完整时，存储服务回退到 DC 图床。
 
 ### CLI 使用
 

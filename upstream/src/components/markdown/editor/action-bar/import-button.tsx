@@ -2,7 +2,7 @@ import { FileUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { editorCommandConfig } from '@/config'
-import { handleImportFiles } from '@/lib/actions'
+import { handleImportFiles } from '@/lib/actions/import-file'
 import { trackEvent } from '@/lib/analytics'
 
 function onImportClick() {

@@ -61,12 +61,12 @@
   border-bottom: 2px solid #b8860b;
 }
 
-/* H2 - 章节标题，细边框分隔 */
+/* H2 - 章节标题，金色细规则线 */
 #bm-md h2 {
   font-size: 1.5em;
   color: #1a1a1a;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #e8e4df;
+  border-bottom: 1px solid #d4a84b;
 }
 
 /* H3 - 小节标题 */
@@ -322,7 +322,6 @@
   border-left: 3px solid #b8860b;
   background-color: #f5f3f0;
   color: #2d2d2d;
-  font-style: italic;
 }
 
 #bm-md blockquote p {
@@ -389,7 +388,7 @@
 /* 表头首行样式（替代 thead） */
 #bm-md tr:first-child th {
   background-color: transparent;
-  border-bottom: 2px solid #1a1a1a;
+  border-bottom: 2px solid #b8860b;
 }
 
 #bm-md th,

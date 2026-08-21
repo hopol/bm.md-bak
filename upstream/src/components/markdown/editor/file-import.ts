@@ -1,13 +1,9 @@
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { toast } from 'sonner'
-import {
-  classifyFile,
-  importFilesAsNewTabs,
-  isImageFile,
-  isTextFile,
-  parseFileToMarkdown,
-} from '@/lib/file-importer'
-import { uploadImage } from '@/lib/upload-image'
+import { importFilesAsNewTabs, partitionImportFiles } from '@/lib/file-importer'
+import { importFilesToEditor } from './import-files'
+
+export { importFilesToEditor } from './import-files'
 
 let currentEditorView: EditorView | null = null
 
@@ -58,74 +54,6 @@ export const importViewTrackerExtension = ViewPlugin.fromClass(
   },
 )
 
-export async function importFilesToEditor(
-  view: EditorView,
-  files: File[],
-  options: { insertPos?: number, replaceAll?: boolean } = {},
-): Promise<void> {
-  if (!files.length) {
-    return
-  }
-
-  const { insertPos, replaceAll = false } = options
-  const selection = view.state.selection.main
-  let currentInsertPos = insertPos ?? selection.from
-
-  for (const file of files) {
-    const fileKind = classifyFile(file)
-    if (fileKind !== 'unsupported') {
-      try {
-        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- 导入会立即修改编辑器内容，必须按用户文件顺序处理。
-        const parsed = await parseFileToMarkdown(file)
-        if (!parsed) {
-          continue
-        }
-        const from = replaceAll ? 0 : (insertPos ?? selection.from)
-        const to = replaceAll ? view.state.doc.length : (insertPos ?? selection.to)
-        view.dispatch({
-          changes: { from, to, insert: parsed.content },
-          selection: { anchor: from + parsed.content.length },
-        })
-        const label = parsed.kind === 'html' ? 'HTML' : 'Markdown'
-        toast.success(`${label} 导入成功: ${file.name}`)
-        break
-      }
-      catch (error) {
-        const label = fileKind === 'html' ? 'HTML 解析' : 'Markdown 读取'
-        console.error(`${label} error:`, error)
-        toast.error(`${label}失败: ${file.name}`)
-      }
-      continue
-    }
-
-    if (file.type.startsWith('image/')) {
-      const toastId = toast.loading(`正在上传 ${file.name}…`)
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('name', file.name)
-        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- 图片插入位置依赖上一张图片长度，需要串行更新光标。
-        const result = await uploadImage(formData)
-
-        const imageMarkdown = `\n![${file.name}](${result.url})\n`
-
-        view.dispatch({
-          changes: { from: currentInsertPos, insert: imageMarkdown },
-          selection: { anchor: currentInsertPos + imageMarkdown.length },
-        })
-        currentInsertPos += imageMarkdown.length
-        toast.success(`图片上传成功: ${file.name}`, { id: toastId })
-      }
-      catch (error) {
-        console.error('Image upload error:', error)
-        const message = error instanceof Error ? error.message : `图片上传失败: ${file.name}`
-        toast.error(message, { id: toastId })
-      }
-      continue
-    }
-  }
-}
-
 export const importDropPasteExtension = EditorView.domEventHandlers({
   drop(event, view) {
     const files = getFilesFromDataTransfer(event.dataTransfer)
@@ -135,16 +63,14 @@ export const importDropPasteExtension = EditorView.domEventHandlers({
 
     event.preventDefault()
 
-    const textFiles = files.filter(isTextFile)
-    const imageFiles = files.filter(isImageFile)
+    const { nonImageFiles, imageFiles } = partitionImportFiles(files)
 
-    if (textFiles.length > 0) {
-      void importFilesAsNewTabs(textFiles)
-      return
+    if (nonImageFiles.length > 0) {
+      void importFilesAsNewTabs(nonImageFiles)
     }
 
     if (imageFiles.length > 0) {
-      void importFilesToEditor(view, imageFiles, { insertPos: view.state.selection.main.anchor })
+      void importFilesToEditor(view, imageFiles, view.state.selection.main.anchor)
     }
   },
   paste(event, view) {
@@ -152,7 +78,7 @@ export const importDropPasteExtension = EditorView.domEventHandlers({
     if (files.length) {
       event.preventDefault()
       const insertPos = view.state.selection.main.anchor
-      void importFilesToEditor(view, files, { insertPos })
+      void importFilesToEditor(view, files, insertPos)
       return
     }
 

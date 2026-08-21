@@ -1,3 +1,4 @@
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -11,11 +12,13 @@ interface CopyButtonProps {
   ariaLabel?: string
 }
 
+const copyTextClient = createClientOnlyFn(copyText)
+
 export function CopyButton({ text, className, ariaLabel = '复制' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
-    const success = await copyText(text)
+    const success = await copyTextClient(text)
     if (success) {
       setCopied(true)
       toast.success('复制成功')

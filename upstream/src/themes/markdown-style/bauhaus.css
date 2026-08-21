@@ -95,7 +95,6 @@
   padding-left: 0.6em;
   border-left: 5px solid #2a5090;
   background-color: rgba(16, 64, 192, 0.08);
-  background: linear-gradient(90deg, rgba(16, 64, 192, 0.08) 0%, transparent 100%);
 }
 
 #bm-md h5 {
@@ -734,9 +733,8 @@
   padding: 0.6em 0.9em;
   background-color: #ffffff;
   border: 4px solid #121212;
+  border-right: 4px solid #1040c0;
   box-shadow: 5px 5px 0 #121212;
-  /* 右侧装饰色条 */
-  background-image: linear-gradient(90deg, transparent calc(100% - 1em), #1040c0 calc(100% - 1em));
 }
 
 #bm-md summary {

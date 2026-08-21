@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { editorCommandConfig, navigationConfig, viewModeConfig } from '@/config'
-import { toggleTheme } from '@/lib/actions'
+import { toggleTheme } from '@/lib/actions/toggle-theme'
 import { trackEvent } from '@/lib/analytics'
 import { getIcon } from '@/lib/icon-map'
 import {

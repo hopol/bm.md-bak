@@ -1,7 +1,7 @@
 {
   "info": {
     "title": "bm.md API",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "OpenAPI specification for the bm.md API."
   },
   "servers": [
@@ -32,13 +32,10 @@
                       "bauhaus",
                       "blueprint",
                       "botanical",
-                      "green-simple",
                       "kami",
-                      "maximalism",
                       "neo-brutalism",
                       "newsprint",
                       "organic",
-                      "playful-geometric",
                       "professional",
                       "retro",
                       "sketch",

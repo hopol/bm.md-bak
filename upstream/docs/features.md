@@ -37,8 +37,10 @@ bm.md 是一个专业的 Markdown 排版工具，专为内容创作者设计。�
 
 支持多种方式导入内容：
 
-- **统一文件识别** - 文件导入、拖拽与 PWA 文件关联统一支持 `.md`、`.markdown`、`.mdown`、`.mkd`，扩展名大小写不敏感
+- **Markdown 文件** - 支持 `.md`、`.markdown`、`.mdown`、`.mkd`，扩展名大小写不敏感
 - **HTML 转换** - `.html`、`.htm` 文件经 Markdown Worker 转换后导入
+- **文档转换** - 支持 Word（`.doc`、`.docx`、`.docm`）、PowerPoint（`.ppt`、`.pps`、`.pot`、`.pptx`、`.pptm`、`.ppsx`、`.ppsm`）、Excel（`.xls`、`.xlsx`、`.xlsm`、`.xlsb`）、OpenDocument（`.odt`、`.ods`、`.odp`），以及 `.rtf`、`.epub`、`.csv`、`.pdf`
+- **大小限制** - 可转换文档单个不超过 20MB
 - **拖拽导入** - 直接拖拽文件到编辑器区域
 - **粘贴导入** - 支持粘贴 HTML 内容自动转换为 Markdown
 - **快捷键** - `Cmd/Ctrl + O` 快速打开文件
@@ -108,25 +110,22 @@ sequenceDiagram
 
 ### Markdown 排版样式
 
-内置 15 种精心设计的排版风格：
+内置 12 种精心设计的排版风格：
 
-| 样式 ID             | 名称              | 风格描述                   |
-| ------------------- | ----------------- | -------------------------- |
-| `ayu-light`         | Ayu Light         | 清新淡雅的浅色主题         |
-| `bauhaus`           | Bauhaus           | 包豪斯风格，几何与功能主义 |
-| `blueprint`         | Blueprint         | 蓝图技术文档风格           |
-| `botanical`         | Botanical         | 植物园风格，自然柔和       |
-| `green-simple`      | GreenSimple       | 简约绿色风格               |
-| `kami`              | Kami              | 纸张阅读风格               |
-| `maximalism`        | Maximalism        | 极繁主义，丰富装饰         |
-| `neo-brutalism`     | Neo-Brutalism     | 新野兽派，大胆对比         |
-| `newsprint`         | Newsprint         | 报纸印刷风格               |
-| `organic`           | Organic           | 有机自然风格               |
-| `playful-geometric` | Playful Geometric | 活泼几何图形风格           |
-| `professional`      | Professional      | 专业商务风格               |
-| `retro`             | Retro             | 复古怀旧风格               |
-| `sketch`            | Sketch            | 手绘素描风格               |
-| `terminal`          | Terminal          | 终端/命令行风格            |
+| 样式 ID         | 名称          | 风格描述                   |
+| --------------- | ------------- | -------------------------- |
+| `ayu-light`     | Ayu Light     | 清新淡雅的浅色主题         |
+| `bauhaus`       | Bauhaus       | 包豪斯风格，几何与功能主义 |
+| `blueprint`     | Blueprint     | 蓝图技术文档风格           |
+| `botanical`     | Botanical     | 植物园风格，自然柔和       |
+| `kami`          | Kami          | 纸张阅读风格               |
+| `neo-brutalism` | Neo-Brutalism | 新野兽派，大胆对比         |
+| `newsprint`     | Newsprint     | 报纸印刷风格               |
+| `organic`       | Organic       | 有机自然风格               |
+| `professional`  | Professional  | 专业商务风格               |
+| `retro`         | Retro         | 复古怀旧风格               |
+| `sketch`        | Sketch        | 手绘素描风格               |
+| `terminal`      | Terminal      | 终端/命令行风格            |
 
 ### 代码高亮主题
 
@@ -164,7 +163,7 @@ sequenceDiagram
 - CSS 选择器需约束在 `#bm-md` 下
 - 自定义样式在主题样式之后应用，可覆盖默认样式
 - 支持通过 API/MCP 传入 `customCss` 参数
-- 配置自动保存到本地存储
+- 编辑完成后点击“保存”才会应用，并持久化到本地存储
 
 示例：
 
@@ -290,7 +289,9 @@ pnpm dlx bmmd lint article.md --fix
 
 ### REST API
 
-提供 4 个核心 API 端点：
+#### Markdown API
+
+Scalar 文档 `/docs` 展示以下 4 个 Markdown API：
 
 | 端点                         | 功能                 |
 | ---------------------------- | -------------------- |
@@ -299,7 +300,9 @@ pnpm dlx bmmd lint article.md --fix
 | `POST /api/markdown/extract` | 提取纯文本           |
 | `POST /api/markdown/lint`    | 格式校验与修复       |
 
-完整 API 文档可访问 `/docs` 查看（Scalar UI）。
+#### 图片上传
+
+`POST /api/upload/image` 用于将编辑器中的临时图片写入配置的 S3 兼容存储或默认图床。请求使用 `multipart/form-data`，包含 `file` 与非空 `name` 字段；图片文件不超过 5MB，声明的 `Content-Length` 超过 6MB 时会被拒绝，仅接受经文件签名识别的 PNG、JPEG、GIF、WebP，成功时返回 `{ "url": "..." }`。该路由独立实现，不属于上述 Scalar/OpenAPI 文档。
 
 ### MCP 协议
 
@@ -319,7 +322,7 @@ pnpm dlx bmmd lint article.md --fix
 
 - 离线可用 - 核心功能无需网络
 - 可安装 - 支持添加到主屏幕
-- 文件关联 - 支持在操作系统中直接用 bm.md 打开 `.md` 文件
+- 文件关联 - 支持在操作系统中直接用 bm.md 打开 `.md`、`.markdown`、`.mdown`、`.mkd`，以及文件导入支持的 Word、PowerPoint、Excel、OpenDocument、RTF、EPUB、CSV、PDF 文档
 
 ---
 
@@ -473,6 +476,24 @@ data
 ---
 
 ### 高级功能
+
+#### Frontmatter
+
+支持 YAML（`---`）与 TOML（`+++`）Frontmatter，并在渲染时转换为表格：
+
+```yaml
+---
+title: 示例文章
+author: bm.md
+---
+```
+
+```text
++++
+title = "示例文章"
+draft = false
++++
+```
 
 #### 脚注
 

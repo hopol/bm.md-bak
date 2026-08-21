@@ -115,7 +115,6 @@
 #bm-md p {
   margin-bottom: 0.9em;
   text-align: justify;
-  text-justify: inter-character;
 }
 
 #bm-md p:last-child {

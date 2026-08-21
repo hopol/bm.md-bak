@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createMarkdownMcpServer } from '@/lib/markdown/mcp'
-import { handleMcpRequest } from '@/utils/mcp-handler'
+import { createMcpHttpHandler, handleMcpOptionsRequest, handleMcpRequest } from '@/utils/mcp-handler'
+
+const mcpHandler = createMcpHttpHandler(createMarkdownMcpServer)
 
 export const Route = createFileRoute('/mcp')({
   server: {
@@ -9,7 +11,8 @@ export const Route = createFileRoute('/mcp')({
         status: 302,
         headers: { Location: '/docs/mcp' },
       }),
-      POST: async ({ request }) => handleMcpRequest(request, createMarkdownMcpServer()),
+      OPTIONS: ({ request }) => handleMcpOptionsRequest(request),
+      POST: async ({ request }) => handleMcpRequest(request, mcpHandler),
     },
   },
 })

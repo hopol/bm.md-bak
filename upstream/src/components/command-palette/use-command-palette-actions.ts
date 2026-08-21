@@ -8,17 +8,13 @@ import { toast } from 'sonner'
 import { usePlatformCopy } from '@/components/markdown/previewer/action-bar/use-platform-copy'
 import { isPreviewReadyNow } from '@/components/markdown/previewer/preview-ready'
 import { editorCommandConfig, platformConfig } from '@/config'
-import {
-  copyImage,
-  copyPlatform,
-  exportImage,
-  exportMarkdown,
-  exportPdf,
-  formatMarkdown,
-  handleImportFiles,
-  printPreview,
-  toggleTheme,
-} from '@/lib/actions'
+import { copyPlatform } from '@/lib/actions/copy-platform'
+import { copyImage, exportImage } from '@/lib/actions/export-image'
+import { exportMarkdown } from '@/lib/actions/export-markdown'
+import { exportPdf, printPreview } from '@/lib/actions/export-pdf'
+import { formatMarkdown } from '@/lib/actions/format'
+import { handleImportFiles } from '@/lib/actions/import-file'
+import { toggleTheme } from '@/lib/actions/toggle-theme'
 import { trackEvent } from '@/lib/analytics'
 import { useCommandPaletteStore } from '@/stores/command-palette'
 import { useEditorStore } from '@/stores/editor'

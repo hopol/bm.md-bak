@@ -1,56 +1,62 @@
-import { describe, expect, it } from 'vitest'
+import type {
+  CallToolResult,
+  DiscoverResult,
+  JSONRPCErrorResponse,
+  ListToolsResult,
+} from '@modelcontextprotocol/server'
+import type { McpResult } from '@/utils/mcp-test-helper'
+import { afterAll, describe, expect, it } from 'vitest'
 
-import { handleMcpRequest } from '@/utils/mcp-handler'
+import { createMcpHttpHandler } from '@/utils/mcp-handler'
+import {
+  createMcpRequest,
+  modernMcpMeta,
+  readMcpJson,
+} from '@/utils/mcp-test-helper'
 import { createMarkdownMcpServer } from './mcp'
 
-interface ToolsListResponse {
-  result?: {
-    tools?: Array<{ name: string }>
-  }
-}
+const handler = createMcpHttpHandler(createMarkdownMcpServer)
 
-interface ToolsCallResponse {
-  result?: {
-    content?: Array<{ type: string, text?: string }>
-    structuredContent?: { result?: string }
-  }
-  error?: JsonRpcError
-}
-
-interface JsonRpcError {
-  code: number
-  message: string
-}
-
-interface JsonRpcErrorResponse {
-  error?: JsonRpcError
-}
-
-async function requestMcp(body: unknown) {
-  return handleMcpRequest(
-    new Request('http://localhost/mcp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream',
-      },
-      body: JSON.stringify(body),
-    }),
-    createMarkdownMcpServer(),
-  )
-}
+afterAll(() => handler.close())
 
 describe('markdown MCP server', () => {
-  it('通过 tools/list 暴露四个 Markdown 工具', async () => {
-    const response = await requestMcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-    const data = await response.json() as ToolsListResponse
-    const toolNames = data.result?.tools?.map(tool => tool.name).sort()
+  it('2025 legacy 与 2026 modern 暴露相同的四个 Markdown 工具且均无 session', async () => {
+    const legacyResponse = await createMcpRequest(handler, { jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    const modernResponse = await createMcpRequest(handler, {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/list',
+      params: { _meta: modernMcpMeta },
+    }, { modern: true })
+    const legacy = await readMcpJson<McpResult<ListToolsResult>>(legacyResponse)
+    const modern = await readMcpJson<McpResult<ListToolsResult>>(modernResponse)
+    const legacyNames = legacy.result.tools.map(tool => tool.name).sort()
+    const modernNames = modern.result.tools.map(tool => tool.name).sort()
 
-    expect(toolNames).toEqual(['extract', 'lint', 'parse', 'render'])
+    expect(legacyResponse.status).toBe(200)
+    expect(modernResponse.status).toBe(200)
+    expect(legacyNames).toEqual(['extract', 'lint', 'parse', 'render'])
+    expect(modernNames).toEqual(legacyNames)
+    expect(legacyResponse.headers.get('Mcp-Session-Id')).toBeNull()
+    expect(modernResponse.headers.get('Mcp-Session-Id')).toBeNull()
+  })
+
+  it('2026-07-28 server/discover 成功', async () => {
+    const response = await createMcpRequest(handler, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'server/discover',
+      params: { _meta: modernMcpMeta },
+    }, { modern: true })
+    const data = await readMcpJson<McpResult<DiscoverResult>>(response)
+
+    expect(response.status).toBe(200)
+    expect(data.result.supportedVersions).toContain('2026-07-28')
+    expect(response.headers.get('Mcp-Session-Id')).toBeNull()
   })
 
   it('通过 tools/call 调用 render 返回文本 JSON 和结构化标题 HTML', async () => {
-    const response = await requestMcp({
+    const response = await createMcpRequest(handler, {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
@@ -59,20 +65,23 @@ describe('markdown MCP server', () => {
         arguments: { markdown: '# 标题' },
       },
     })
-    const data = await response.json() as ToolsCallResponse
-    const text = data.result?.content?.[0]?.text ?? '{}'
+    const data = await readMcpJson<McpResult<CallToolResult>>(response)
+    const firstContent = data.result.content[0]
+    const text = firstContent?.type === 'text' ? firstContent.text : '{}'
     const content = JSON.parse(text) as { result?: string }
+    const structuredResult = (data.result.structuredContent as { result?: unknown } | undefined)?.result
 
     expect(response.status).toBe(200)
-    expect(data.result?.content?.[0]?.type).toBe('text')
+    expect(firstContent?.type).toBe('text')
     expect(content.result).toContain('<h1')
     expect(content.result).toContain('标题')
-    expect(data.result?.structuredContent?.result).toContain('<h1')
-    expect(data.result?.structuredContent?.result).toContain('标题')
+    expect(structuredResult).toBeTypeOf('string')
+    expect(structuredResult).toContain('<h1')
+    expect(structuredResult).toContain('标题')
   })
 
   it('通过 tools/call 调用 extract 返回纯文本结果', async () => {
-    const response = await requestMcp({
+    const response = await createMcpRequest(handler, {
       jsonrpc: '2.0',
       id: 3,
       method: 'tools/call',
@@ -81,15 +90,17 @@ describe('markdown MCP server', () => {
         arguments: { markdown: '# 标题\n\n**正文** [链接](https://example.com)' },
       },
     })
-    const data = await response.json() as ToolsCallResponse
+    const data = await readMcpJson<McpResult<CallToolResult>>(response)
+    const structuredResult = (data.result.structuredContent as { result?: unknown } | undefined)?.result
 
     expect(response.status).toBe(200)
-    expect(data.result?.structuredContent?.result).toContain('标题')
-    expect(data.result?.structuredContent?.result).toContain('正文 链接')
+    expect(structuredResult).toBeTypeOf('string')
+    expect(structuredResult).toContain('标题')
+    expect(structuredResult).toContain('正文 链接')
   })
 
   it('通过 tools/call 传入非法参数时返回 JSON-RPC 错误', async () => {
-    const response = await requestMcp({
+    const response = await createMcpRequest(handler, {
       jsonrpc: '2.0',
       id: 4,
       method: 'tools/call',
@@ -98,10 +109,10 @@ describe('markdown MCP server', () => {
         arguments: { markdown: '# 标题' },
       },
     })
-    const data = await response.json() as JsonRpcErrorResponse
+    const data = await readMcpJson<JSONRPCErrorResponse>(response)
 
     expect(response.status).not.toBe(500)
-    expect(data.error?.code).toBeTypeOf('number')
-    expect(data.error?.message).toBeTypeOf('string')
+    expect(data.error.code).toBeTypeOf('number')
+    expect(data.error.message).toBeTypeOf('string')
   })
 })

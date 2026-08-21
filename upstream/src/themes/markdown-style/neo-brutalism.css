@@ -138,14 +138,11 @@
    行内文本样式
    ============================================ */
 
-/* 加粗 - 黄色高亮块 */
+/* 加粗 - 红色强调 */
 #bm-md strong,
 #bm-md b {
   font-weight: 900;
-  color: #000000;
-  background-color: #feca57;
-  padding: 0.08em 0.25em;
-  border: 2px solid #000000;
+  color: #ff4757;
 }
 
 /* 斜体 - 红色下划线 */
@@ -408,7 +405,7 @@
   padding: 1.1em;
   background-color: #000000;
   border: 5px solid #000000;
-  box-shadow: 10px 10px 0 #ff4757;
+  box-shadow: 6px 6px 0 #ff4757;
   overflow-x: auto;
 }
 

@@ -19,7 +19,7 @@
 
 ### 依赖说明
 
-- `mcp-config` 暂时保留 GitHub 依赖：已检查 npm 版 `mcp-config@0.0.10`，其包内容是交互式 CLI（`main`/`bin` 指向 `dist/index.js`），不提供当前 MCP 配置页使用的 `getClients` / `transformConfig` 兼容导出，也没有兼容的 `mcp-config/src/index.js` 入口。
+- `mcp-config` 保留 GitHub 依赖，因为当前 MCP 配置页使用其 `getClients`、`transformConfig` 与 `mcp-config/src/index.js` 入口，而 npm 包不提供兼容导出与入口。
 
 ---
 
@@ -197,7 +197,7 @@ create、rename、delete 会在 IndexedDB 事务内读取最新 catalog；create
 
 旧版 `localStorage['bm.md.files']` 仅用于一次性迁移到 v2 catalog，迁移成功后删除。
 
-`src/lib/file-importer.ts` 统一识别 `.md`、`.markdown`、`.mdown`、`.mkd`（大小写不敏感），HTML 文件经 Markdown Worker 转换。批量导入按原始顺序创建标签；`filesStore.createFile()` 创建文件后立即将其设为活动文件，因此最后创建的文件保持激活。
+`src/lib/file-importer.ts` 统一分类导入文件：直接读取 `.md`、`.markdown`、`.mdown`、`.mkd`（大小写不敏感），HTML 经 Markdown Worker 转换；Word、PowerPoint、Excel、OpenDocument、RTF、EPUB、CSV、PDF 等文档则通过 `src/lib/document/browser.ts` 串行发送到文档 Worker，由 AnyDoc WASM 转换为 Markdown。可转换文档单个限制为 20MB，超限会在进入 Worker 前拒绝。批量导入按原始顺序创建标签；`filesStore.createFile()` 创建文件后立即将其设为活动文件，因此最后创建的文件保持激活。
 
 ### 云端存储（图片上传）
 
@@ -214,12 +214,15 @@ create、rename、delete 会在 IndexedDB 事务内读取最新 catalog；create
 │  └─ false → DCStorage (默认图床)                              │
 ├──────────────────────────────────────────────────────────────┤
 │  环境变量                                                     │
-│  ├─ S3_ACCESS_KEY_ID                                         │
-│  ├─ S3_SECRET_ACCESS_KEY                                     │
-│  ├─ S3_ENDPOINT                                              │
-│  └─ S3_BUCKET                                                │
+│  ├─ S3 必需：S3_ACCESS_KEY_ID                                 │
+│  ├─ S3 必需：S3_SECRET_ACCESS_KEY                             │
+│  ├─ S3 必需：S3_ENDPOINT                                     │
+│  ├─ S3 可选：S3_BUCKET、S3_REGION、S3_PUBLIC_BASE_URL         │
+│  └─ DC 可选：DC_UPLOAD_URL                                   │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+只有 `S3_ACCESS_KEY_ID`、`S3_SECRET_ACCESS_KEY`、`S3_ENDPOINT` 同时存在时才判定启用 S3。`S3_BUCKET` 可用于拼接上传路径，`S3_REGION` 默认 `auto`，`S3_PUBLIC_BASE_URL` 可指定返回给客户端的公开地址；未启用 S3 时使用 DC 图床，`DC_UPLOAD_URL` 可覆盖其默认上传地址。
 
 ---
 
@@ -249,11 +252,12 @@ create、rename、delete 会在 IndexedDB 事务内读取最新 catalog；create
 
 ```
 __root.tsx (HTML 文档结构、全局 Provider)
-└── _layout.tsx (主布局：编辑器 | 预览器 | 底栏)
-    ├── _layout.index.tsx (首页)
-    ├── _layout.about.tsx (关于弹窗)
-    ├── _layout.docs.mcp.tsx (MCP 弹窗)
-    └── _layout.docs.skill.tsx (Skill 弹窗)
+├── _layout.tsx (主布局：编辑器 | 预览器 | 底栏)
+│   ├── _layout.index.tsx (首页)
+│   ├── _layout.about.tsx (关于弹窗)
+│   ├── _layout.docs.mcp.tsx (MCP 弹窗)
+│   └── _layout.docs.skill.tsx (Skill 弹窗)
+└── docs.tsx (root-level API 文档 sibling)
 ```
 
 ---
@@ -277,6 +281,7 @@ Markdown 渲染在 Web Worker 中执行，避免阻塞主线程：
 - 使用 oRPC 的 Web Workers Adapter
 - 支持双向通信
 - 类型安全的 RPC 调用
+- 可转换文档使用独立的文档 Worker，通过 AnyDoc WASM 输出 Markdown；客户端串行提交任务并设置超时，避免转换阻塞 UI 或叠加 WASM 内存峰值
 
 ---
 
