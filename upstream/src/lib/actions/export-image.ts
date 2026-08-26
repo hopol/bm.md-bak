@@ -1,17 +1,21 @@
 import type { CaptureResult } from '@zumer/snapdom'
 import { toast } from 'sonner'
 import { copyImage as copyImageToClipboard } from '@/lib/clipboard'
+import { getSafeRasterDimensions } from '@/lib/raster'
 import { getPreviewElement } from './preview'
-import { getSafeRasterDimensions } from './raster'
 
 async function createPreviewSnapshot(): Promise<CaptureResult | null> {
   const previewContent = getPreviewElement()
   if (!previewContent)
     return null
 
+  const fontsReady = previewContent.ownerDocument?.fonts?.ready
+  if (fontsReady)
+    await fontsReady
+
   const { snapdom } = await import('@zumer/snapdom')
   const { width, height } = getSafeRasterDimensions(previewContent)
-  return snapdom(previewContent, { dpr: 1, width, height })
+  return snapdom(previewContent, { dpr: 1, width, height, embedFonts: true })
 }
 
 export async function exportImage() {

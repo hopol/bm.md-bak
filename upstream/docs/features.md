@@ -110,22 +110,18 @@ sequenceDiagram
 
 ### Markdown 排版样式
 
-内置 12 种精心设计的排版风格：
+内置 8 种排版风格。Kami 是默认样式，定位为简洁、清晰的纸张阅读体验，设计灵感来自 [tw93/Kami](https://github.com/tw93/Kami)。
 
-| 样式 ID         | 名称          | 风格描述                   |
-| --------------- | ------------- | -------------------------- |
-| `ayu-light`     | Ayu Light     | 清新淡雅的浅色主题         |
-| `bauhaus`       | Bauhaus       | 包豪斯风格，几何与功能主义 |
-| `blueprint`     | Blueprint     | 蓝图技术文档风格           |
-| `botanical`     | Botanical     | 植物园风格，自然柔和       |
-| `kami`          | Kami          | 纸张阅读风格               |
-| `neo-brutalism` | Neo-Brutalism | 新野兽派，大胆对比         |
-| `newsprint`     | Newsprint     | 报纸印刷风格               |
-| `organic`       | Organic       | 有机自然风格               |
-| `professional`  | Professional  | 专业商务风格               |
-| `retro`         | Retro         | 复古怀旧风格               |
-| `sketch`        | Sketch        | 手绘素描风格               |
-| `terminal`      | Terminal      | 终端/命令行风格            |
+| 样式 ID     | 名称      | 风格描述                   |
+| ----------- | --------- | -------------------------- |
+| `kami`      | Kami      | 简洁的纸张阅读风格（默认） |
+| `bauhaus`   | Bauhaus   | 包豪斯风格，几何与功能主义 |
+| `blueprint` | Blueprint | 蓝图技术文档风格           |
+| `botanical` | Botanical | 植物园风格，自然柔和       |
+| `newsprint` | Newsprint | 报纸印刷风格               |
+| `retro`     | Retro     | 复古怀旧风格               |
+| `sketch`    | Sketch    | 手绘素描风格               |
+| `terminal`  | Terminal  | 终端/命令行风格            |
 
 ### 代码高亮主题
 
@@ -210,11 +206,12 @@ sequenceDiagram
 
 ### PDF 导出与打印
 
-- **高质量分页 PDF** - 只执行一次 snapDOM SVG 快照，按 DOM 安全断点逐页修改 `viewBox`，再以 2x 比例栅格化并写入 PDF
-- **尺寸保护** - 单页会根据内容尺寸动态缩放，遵守浏览器单边最大 16384 像素的限制
-- **打印** - 使用当前已完成渲染的预览内容打开浏览器打印流程
-
-预览中的外部图片必须允许跨域读取（CORS），否则图片、PDF 导出可能无法完整捕获。建议先通过图片上传功能取得可用地址；bm.md 不承诺为任意外部图片提供代理。
+- **矢量 PDF** - 按当前预览导出 A4 分页 PDF；文字可选中，标题生成书签
+- **中日韩与 Emoji** - 按文档语言与内容加载对应 Noto 字体（含代码等宽与 Emoji）；个别字符仍无法覆盖时替换为 `□` 并提示
+- **页面背景** - 纯色底铺满整页（含页边距）；主题渐变、点阵等纹理只出现在正文区域
+- **图片** - 支持预览中的图片与内联 SVG；外链图片需允许跨域读取（CORS）。单张不超过 20 MiB，合计不超过 64 MiB，最多 64 个不同图片地址
+- **边界** - 使用引擎支持的 CSS 子集，不运行预览中的脚本；外部背景图、遮罩等资源不一定打进 PDF；复杂样式可能与预览不完全一致
+- **打印降级** - 离线且所需字体尚未缓存，或 PDF 引擎不可用时，自动打开浏览器打印；也可随时对当前预览使用打印
 
 ---
 
@@ -275,7 +272,7 @@ pnpm dlx bmmd lint article.md --fix
 | 参数                         | 默认值         | 说明                               |
 | ---------------------------- | -------------- | ---------------------------------- |
 | `--platform <platform>`      | `html`         | 输出平台：`html`、`wechat`         |
-| `--markdown-style <id>`      | `ayu-light`    | Markdown 排版样式                  |
+| `--markdown-style <id>`      | `kami`         | Markdown 排版样式                  |
 | `--code-theme <id>`          | `kimbie-light` | 代码块高亮主题                     |
 | `--mermaid-theme <id>`       | 默认主题       | Mermaid 流程图主题                 |
 | `--infographic-theme <id>`   | `default`      | Infographic 信息图主题             |
