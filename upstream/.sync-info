@@ -1,5 +1,5 @@
-commit=7bfd9e53a1dfa94ece06f2b23e16bcfa12ce477c
-timestamp=2026-08-31T08:02:28Z
+commit=434fd037cbfbe849c67ff9791270ee7780f81b2a
+timestamp=2026-09-06T06:47:53Z
 upstream_url=https://github.com/miantiao-me/bm.md
 upstream_branch=master
-version=0.3.0
+version=0.3.1
