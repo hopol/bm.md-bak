@@ -16,9 +16,11 @@ import {
   Palette,
   Printer,
   RefreshCw,
+  ScanText,
   Smartphone,
   Sun,
   Wand,
+  WrapText,
 } from 'lucide-react'
 import GithubIcon from '@/icons/github'
 import MCPIcon from '@/icons/mcp'
@@ -44,10 +46,12 @@ const iconMap = {
   Palette,
   Printer,
   RefreshCw,
+  ScanText,
   Smartphone,
   Sun,
   Twitter: TwitterIcon,
   Wand,
+  WrapText,
   Wechat: WechatIcon,
   MCP: MCPIcon,
   Skill: SkillIcon,

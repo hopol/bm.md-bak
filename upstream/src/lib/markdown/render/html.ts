@@ -1,4 +1,3 @@
-import type { Plugin } from 'unified'
 import type * as z from 'zod'
 import type { renderDefinition } from './definition'
 import juice from 'juice'
@@ -10,6 +9,7 @@ import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
+import remarkBreaks from 'remark-breaks'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -39,9 +39,9 @@ export interface PreviewRenderResult {
   css: string
 }
 
-type ProcessorOptions = Pick<RenderOptions, 'enableFootnoteLinks' | 'openLinksInNewWindow' | 'mermaidTheme' | 'infographicTheme' | 'infographicPalette' | 'markdownStyle' | 'platform' | 'footnoteLabel' | 'referenceTitle'>
+type ProcessorOptions = Pick<RenderOptions, 'breaks' | 'enableFootnoteLinks' | 'openLinksInNewWindow' | 'mermaidTheme' | 'infographicTheme' | 'infographicPalette' | 'markdownStyle' | 'platform' | 'footnoteLabel' | 'referenceTitle'>
 
-function createProcessor({ enableFootnoteLinks, openLinksInNewWindow, mermaidTheme, infographicTheme, infographicPalette, markdownStyle, platform = 'html', footnoteLabel = 'Footnotes', referenceTitle = 'References' }: ProcessorOptions) {
+function createProcessor({ breaks = false, enableFootnoteLinks, openLinksInNewWindow, mermaidTheme, infographicTheme, infographicPalette, markdownStyle, platform = 'html', footnoteLabel = 'Footnotes', referenceTitle = 'References' }: ProcessorOptions) {
   const processor = unified()
     .use(remarkParse)
     .use(remarkHighlight)
@@ -50,6 +50,12 @@ function createProcessor({ enableFootnoteLinks, openLinksInNewWindow, mermaidThe
     .use(remarkMath)
     .use(remarkFrontmatter, ['yaml', 'toml'])
     .use(remarkFrontmatterTable)
+
+  if (breaks) {
+    processor.use(remarkBreaks)
+  }
+
+  processor
     .use(remarkRehype, {
       allowDangerousHtml: true,
       footnoteLabel,
@@ -84,14 +90,7 @@ function createProcessor({ enableFootnoteLinks, openLinksInNewWindow, mermaidThe
   }
 
   const adapterPlugins = getAdapterPlugins(platform, { referenceTitle })
-  for (const plugin of adapterPlugins) {
-    if (Array.isArray(plugin)) {
-      processor.use(plugin[0] as Plugin, plugin[1])
-    }
-    else {
-      processor.use(plugin as Plugin)
-    }
-  }
+  processor.use(adapterPlugins)
 
   processor.use(rehypeDivToSection)
   processor.use(rehypeWrapTextNodes)
@@ -139,6 +138,7 @@ export async function renderMarkdownHtml(options: RenderOptions): Promise<string
     mermaidTheme,
     infographicTheme,
     infographicPalette,
+    breaks = false,
     enableFootnoteLinks = true,
     openLinksInNewWindow = true,
     platform = 'html',
@@ -146,7 +146,7 @@ export async function renderMarkdownHtml(options: RenderOptions): Promise<string
     referenceTitle = 'References',
   } = options
 
-  const processor = createProcessor({ enableFootnoteLinks, openLinksInNewWindow, mermaidTheme, infographicTheme, infographicPalette, markdownStyle, platform, footnoteLabel, referenceTitle })
+  const processor = createProcessor({ breaks, enableFootnoteLinks, openLinksInNewWindow, mermaidTheme, infographicTheme, infographicPalette, markdownStyle, platform, footnoteLabel, referenceTitle })
 
   return (await processor.process(markdown)).toString()
 }

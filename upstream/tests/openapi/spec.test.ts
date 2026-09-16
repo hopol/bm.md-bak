@@ -74,6 +74,25 @@ function getRequestSchema(operation: Operation) {
 }
 
 describe('openapi 规范', () => {
+  it.each([
+    ['render', 'markdown', MAX_INPUT_SIZE],
+    ['render', 'customCss', 50000],
+    ['render', 'footnoteLabel', 50],
+    ['render', 'referenceTitle', 50],
+    ['parse', 'html', MAX_INPUT_SIZE],
+    ['extract', 'markdown', MAX_INPUT_SIZE],
+    ['lint', 'markdown', MAX_INPUT_SIZE],
+  ] as const)('%s 的 %s 长度限制在直接生成和公开规范中保持一致', async (tool, field, limit) => {
+    const directSpec = await generateSpec()
+    const publicSpec = JSON.parse(await readFile('public/api/openapi.json', 'utf8')) as OpenAPISpec
+
+    for (const spec of [directSpec, publicSpec]) {
+      const schema = getRequestSchema(spec.paths?.[`/markdown/${tool}`]?.post as Operation)
+      const properties = getJsonObject(schema.properties, '请求属性')
+      expect(properties[field]).toMatchObject({ type: 'string', maxLength: limit })
+    }
+  })
+
   it('只暴露 registry 中的四个 Markdown 工具', async () => {
     const spec = await generateSpec()
 
@@ -143,11 +162,15 @@ describe('openapi 规范', () => {
     expect(properties).toHaveProperty('openLinksInNewWindow')
     expect(properties).toHaveProperty('referenceTitle')
     expect(properties).toHaveProperty('footnoteLabel')
+    expect(properties.breaks).toMatchObject({ type: 'boolean', default: false })
+    expect(schema.required).not.toContain('breaks')
   })
 
   it('已生成的公开规范包含关键路径', async () => {
     const content = await readFile('public/api/openapi.json', 'utf8')
     const spec = JSON.parse(content) as OpenAPISpec
+    const schema = getRequestSchema(spec.paths?.['/markdown/render']?.post as Operation)
+    expect(getJsonObject(schema.properties, '渲染请求属性').breaks).toMatchObject({ type: 'boolean', default: false })
 
     for (const path of paths) {
       expect(spec.paths).toHaveProperty(path)

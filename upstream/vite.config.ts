@@ -8,12 +8,11 @@ import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { name } from './package.json'
-import { cssRawMinifyPlugin, markdownPlugin } from './scripts/vite'
-import { resolvePlatformConfig } from './scripts/vite/platform'
-import { appConfig } from './src/config/app'
-import { DOCUMENT_MIME_EXTENSIONS } from './src/lib/document/files'
-import { MARKDOWN_FILE_EXTENSIONS } from './src/lib/markdown-file'
+import { cssRawMinifyPlugin, markdownPlugin } from './scripts/vite/index.ts'
+import { resolvePlatformConfig } from './scripts/vite/platform.ts'
+import { appConfig } from './src/config/app.ts'
+import { DOCUMENT_MIME_EXTENSIONS } from './src/lib/document/files.ts'
+import { MARKDOWN_FILE_EXTENSIONS } from './src/lib/markdown-file.ts'
 
 const require = createRequire(import.meta.url)
 const platformConfig = resolvePlatformConfig(env)
@@ -37,6 +36,8 @@ const dynamicOptimizeDeps = [
   '@antv/infographic/ssr',
   '@zumer/snapdom',
   'beautiful-mermaid',
+  '@paddleocr/paddleocr-js > @techstark/opencv-js',
+  '@paddleocr/paddleocr-js > clipper-lib',
   'juice',
   'markdownlint',
   'markdownlint/promise',
@@ -58,7 +59,7 @@ const config = defineConfig({
             cloudflare: {
               nodeCompat: true,
               wrangler: {
-                name,
+                name: 'bm-md',
                 compatibility_date: '2026-07-12',
                 observability: { enabled: true },
                 keep_vars: true,
@@ -117,6 +118,11 @@ const config = defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,woff,woff2}'],
+        globIgnores: [
+          '**/ort-wasm-*.wasm',
+          '**/paddleocr-*.js',
+          '**/worker-entry-*.js',
+        ],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       devOptions: {
@@ -124,18 +130,34 @@ const config = defineConfig({
       },
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{
+            name: 'paddleocr',
+            test: /\/node_modules\/@techstark\/opencv-js\//,
+          }],
+        },
+      },
+    },
+  },
   resolve: {
+    conditions: ['module', 'browser', 'development|production', 'onnxruntime-web-use-extern-wasm'],
     tsconfigPaths: true,
     // CodeMirror 扩展依赖 instanceof 检查，必须解析到同一份 state/view 模块。
     dedupe: codemirrorPackages,
-    alias: {
-      'decode-named-character-reference': require.resolve('decode-named-character-reference'),
-      'hast-util-from-html-isomorphic': require.resolve('hast-util-from-html-isomorphic'),
-    },
+    alias: [
+      { find: 'decode-named-character-reference', replacement: require.resolve('decode-named-character-reference') },
+      { find: 'hast-util-from-html-isomorphic', replacement: require.resolve('hast-util-from-html-isomorphic') },
+      // 只需要 CSS 内联，避免加载 Juice/Cheerio 的 Node 文件与网络 I/O 链。
+      { find: /^juice$/, replacement: require.resolve('juice/client') },
+      { find: /^cheerio$/, replacement: createRequire(require.resolve('juice/package.json')).resolve('cheerio/slim') },
+    ],
   },
   optimizeDeps: {
     include: [...codemirrorPackages, ...dynamicOptimizeDeps],
-    exclude: ['@firecrawl/anydoc-wasm'],
+    exclude: ['@firecrawl/anydoc-wasm', '@paddleocr/paddleocr-js'],
   },
   worker: {
     format: 'es',

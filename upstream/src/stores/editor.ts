@@ -1,7 +1,20 @@
+import { isBoolean, pick, pickBy } from 'es-toolkit'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useShallow } from 'zustand/shallow'
 
-export interface EditorState {
+export interface EditorSettings {
+  enableFootnoteLinks: boolean
+  breaks: boolean
+  openLinksInNewWindow: boolean
+  enableScrollSync: boolean
+  enableImageOcr: boolean
+  enableEnhancedImageOcr: boolean
+}
+
+export type EditorSettingKey = keyof EditorSettings
+
+export interface EditorState extends EditorSettings {
   // Scroll
   scrollRatio: number
   scrollSource: ScrollSource
@@ -9,23 +22,19 @@ export interface EditorState {
   setScrollFromPreview: (ratio: number) => void
 
   // Settings
-  enableFootnoteLinks: boolean
-  setEnableFootnoteLinks: (enable: boolean) => void
-
-  openLinksInNewWindow: boolean
-  setOpenLinksInNewWindow: (enable: boolean) => void
-
-  enableScrollSync: boolean
-  setEnableScrollSync: (enable: boolean) => void
+  setSetting: <K extends EditorSettingKey>(key: K, value: EditorSettings[K]) => void
 }
 
-export type EditorBooleanKey = {
-  [K in keyof EditorState]: EditorState[K] extends boolean ? K : never
-}[keyof EditorState]
+const editorSettingsDefaults: EditorSettings = {
+  enableFootnoteLinks: true,
+  breaks: false,
+  openLinksInNewWindow: true,
+  enableScrollSync: true,
+  enableImageOcr: false,
+  enableEnhancedImageOcr: false,
+}
 
-export type EditorBooleanSetterKey = {
-  [K in keyof EditorState]: EditorState[K] extends (v: boolean) => void ? K : never
-}[keyof EditorState]
+const editorSettingKeys = Object.keys(editorSettingsDefaults) as EditorSettingKey[]
 
 function clampRatio(value: number) {
   return Math.min(1, Math.max(0, value))
@@ -47,42 +56,28 @@ export const useEditorStore = create<EditorState>()(
       }),
 
       // Settings
-      enableFootnoteLinks: true,
-      setEnableFootnoteLinks: enable => set({ enableFootnoteLinks: enable }),
-
-      openLinksInNewWindow: true,
-      setOpenLinksInNewWindow: enable => set({ openLinksInNewWindow: enable }),
-
-      enableScrollSync: true,
-      setEnableScrollSync: enable => set({ enableScrollSync: enable }),
+      ...editorSettingsDefaults,
+      setSetting: (key, value) => set({ [key]: value }),
     }),
     {
       name: 'bm.md.editor',
       skipHydration: true,
-      partialize: state => ({
-        enableFootnoteLinks: state.enableFootnoteLinks,
-        openLinksInNewWindow: state.openLinksInNewWindow,
-        enableScrollSync: state.enableScrollSync,
-      }),
+      partialize: state => pick(state, editorSettingKeys),
       merge: (persistedState, currentState) => {
-        const settings = persistedState as Partial<Pick<
-          EditorState,
-          'enableFootnoteLinks' | 'openLinksInNewWindow' | 'enableScrollSync'
-        >>
-
-        return {
-          ...currentState,
-          enableFootnoteLinks: typeof settings.enableFootnoteLinks === 'boolean'
-            ? settings.enableFootnoteLinks
-            : currentState.enableFootnoteLinks,
-          openLinksInNewWindow: typeof settings.openLinksInNewWindow === 'boolean'
-            ? settings.openLinksInNewWindow
-            : currentState.openLinksInNewWindow,
-          enableScrollSync: typeof settings.enableScrollSync === 'boolean'
-            ? settings.enableScrollSync
-            : currentState.enableScrollSync,
+        if (persistedState === null || typeof persistedState !== 'object') {
+          return currentState
         }
+        const settings = pickBy(
+          pick(persistedState as Partial<EditorSettings>, editorSettingKeys),
+          isBoolean,
+        )
+
+        return { ...currentState, ...settings }
       },
     },
   ),
 )
+
+export function useEditorSettings(): EditorSettings {
+  return useEditorStore(useShallow(state => pick(state, editorSettingKeys)))
+}
