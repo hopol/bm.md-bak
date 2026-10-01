@@ -1,97 +1,62 @@
-import type { StoreApi } from 'zustand'
 import type { FileCatalog, MarkdownFile } from '@/lib/file-storage'
 
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import defaultMarkdown from '@/docs/features.md?raw'
-import {
-  createFileRecord,
-  deleteFileRecord,
-  FileStorageError,
-  getFileCatalog,
-  getFileSnapshot,
-  getStorageUnavailableReason,
-  initializeFileStorage,
-  isFileStorageError,
-  isStorageUnavailable,
-  renameFileRecord,
-} from '@/lib/file-storage'
-import { publishCatalogSignal, publishContentSignal } from '@/lib/files-sync'
+import * as storage from '@/lib/file-storage'
+import { notifyFilesChanged } from '@/lib/files-sync'
+import { createExternalSync } from './file-external-sync'
+import { applyCatalog, createFileSession, isFileContentReady } from './file-session'
 import { createFileWriters } from './file-writers'
 
-export type { MarkdownFile } from '@/lib/file-storage'
 export { defaultMarkdown }
+export { isFileContentReady } from './file-session'
+export type { MarkdownFile } from '@/lib/file-storage'
 
-type ContentStatus = 'idle' | 'loading' | 'ready'
-
-interface FileContentReadyState {
-  activeFileId: string | null
-  contentFileId: string | null
-  contentStatus: ContentStatus
-}
-
-export function isFileContentReady(state: FileContentReadyState): boolean {
-  return state.activeFileId !== null && state.contentStatus === 'ready' && state.contentFileId === state.activeFileId
-}
-
-interface FilesState {
+export interface FilesState {
   files: MarkdownFile[]
   activeFileId: string | null
   currentContent: string
   isInitialized: boolean
   revision: number
-  contentStatus: ContentStatus
+  contentStatus: 'idle' | 'loading' | 'ready'
   contentFileId: string | null
   contentVersion: number
   contentEpoch: number
   setFileContent: (fileId: string, content: string) => void
   replaceFileContentIfUnchanged: (fileId: string, expectedContent: string, nextContent: string) => boolean
-  setCurrentContent: (content: string) => void
   createFile: (name?: string, content?: string) => Promise<string>
   deleteFile: (id: string) => Promise<void>
   renameFile: (id: string, name: string) => Promise<void>
   switchFile: (id: string) => Promise<void>
-  getActiveFile: () => MarkdownFile | undefined
   initialize: () => Promise<void>
   syncExternalChanges: () => Promise<void>
-  refreshCatalog: () => Promise<void>
   flushPendingSaves: () => Promise<boolean>
 }
 
-interface LegacyState {
-  files: MarkdownFile[]
-  activeFileId: string | null
-  exists: boolean
-}
-
-type SetState = StoreApi<FilesState>['setState']
-type GetState = StoreApi<FilesState>['getState']
-
-const LEGACY_KEY = 'bm.md.files'
-const SESSION_ACTIVE_KEY = 'bm.md.files.active'
 const DEFAULT_FILE_NAME = 'bm.md'
-const STORAGE_FAILURE_MESSAGE = '浏览器持久化操作失败，请重试或导出内容'
-const SAVE_FAILURE_MESSAGE = '保存失败，请立即导出备份。'
-function getSessionStorage(): Storage | null {
-  try {
-    return typeof sessionStorage === 'undefined' ? null : sessionStorage
+const OPERATION_FAILURE_MESSAGE = '文件操作失败，请重试'
+const SAVE_FAILURE_MESSAGE = '保存失败，请导出当前内容备份'
+const LOAD_FAILURE_MESSAGE = '正文加载失败，请重试'
+const STORAGE_UNAVAILABLE_MESSAGE = '浏览器存储不可用，刷新后内容会丢失'
+const REMOTE_DELETE_MESSAGE = '该文件已在其他标签页删除'
+
+// create/delete 因本地保存未落盘而中止时抛出的哨兵：保存告警已由 writers 发出，不再重复 toast。
+const SAVE_ABORT_ERROR = new storage.FileStorageError()
+
+let isPersistent = true
+// 每个会话只在首次成功保存/创建后申请一次持久化存储。
+let persistRequested = false
+// 同一次远端删除只提示一次；自己删除走 runMutation，不会经过这两个检测点。
+const notifiedRemoteDeletes = new Set<string>()
+
+function requestPersistOnce(): void {
+  if (persistRequested || !isPersistent) {
+    return
   }
-  catch {
-    return null
-  }
+  persistRequested = true
+  void storage.requestPersistentStorage()
 }
-
-const fileSessionStorage = getSessionStorage()
-
-const fileWriters = createFileWriters({
-  onSaveResult: handleSaveResult,
-  onFailure: error => reportStorageFailure(error, SAVE_FAILURE_MESSAGE),
-})
-let activeIntentToken = 0
-let contentLoadToken = 0
-let localEditEpoch = 0
-let initPromise: Promise<void> | null = null
-let storageUnavailableWarned = false
 
 function extractH1Title(content: string): string | null {
   for (const line of content.split('\n')) {
@@ -102,85 +67,35 @@ function extractH1Title(content: string): string | null {
   return null
 }
 
-function isMarkdownFile(value: unknown): value is MarkdownFile {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  return 'id' in value && typeof value.id === 'string'
-    && 'name' in value && typeof value.name === 'string'
-    && 'createdAt' in value && typeof value.createdAt === 'number'
-    && 'updatedAt' in value && typeof value.updatedAt === 'number'
+function logStorageError(error: unknown): void {
+  console.error('文件存储操作失败', error instanceof Error ? (error.cause ?? error) : error)
 }
 
-function readLegacyState(): LegacyState {
-  let exists = false
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY)
-    if (raw === null) {
-      return { files: [], activeFileId: null, exists: false }
-    }
-    exists = true
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || !('state' in parsed)) {
-      return { files: [], activeFileId: null, exists: true }
-    }
-    const state = parsed.state
-    if (typeof state !== 'object' || state === null) {
-      return { files: [], activeFileId: null, exists: true }
-    }
-    const files = 'files' in state && Array.isArray(state.files) ? state.files.filter(isMarkdownFile) : []
-    const activeFileId = 'activeFileId' in state && (typeof state.activeFileId === 'string' || state.activeFileId === null)
-      ? state.activeFileId
-      : null
-    return { files, activeFileId, exists: true }
-  }
-  catch {
-    return { files: [], activeFileId: null, exists }
+function reportOperationFailure(error: unknown): void {
+  if (error instanceof storage.FileStorageError) {
+    logStorageError(error)
+    toast.error(OPERATION_FAILURE_MESSAGE)
   }
 }
 
-function readSessionActive(): { id: string | null, exists: boolean } {
-  try {
-    const id = fileSessionStorage?.getItem(SESSION_ACTIVE_KEY) ?? null
-    return { id, exists: id !== null }
-  }
-  catch {
-    return { id: null, exists: false }
+function reportLoadFailure(error: unknown): void {
+  if (error instanceof storage.FileStorageError) {
+    logStorageError(error)
+    toast.error(LOAD_FAILURE_MESSAGE)
   }
 }
 
-function writeSessionActive(id: string | null): void {
-  try {
-    if (!fileSessionStorage) {
-      return
+const fileWriters = createFileWriters({
+  onSaveResult: handleSaveResult,
+  onFailure: (error) => {
+    if (error instanceof storage.FileStorageError) {
+      logStorageError(error)
+      toast.error(SAVE_FAILURE_MESSAGE)
     }
-    if (id) {
-      fileSessionStorage.setItem(SESSION_ACTIVE_KEY, id)
-    }
-    else {
-      fileSessionStorage.removeItem(SESSION_ACTIVE_KEY)
-    }
-  }
-  catch {
-    // 会话存储不可用时仅保留内存状态。
-  }
-}
+  },
+})
 
-function warnStorageUnavailable(): void {
-  if (isStorageUnavailable() && !storageUnavailableWarned) {
-    storageUnavailableWarned = true
-    toast.warning(getStorageUnavailableReason())
-  }
-}
-
-function reportStorageFailure(error: unknown, message = STORAGE_FAILURE_MESSAGE): void {
-  if (isFileStorageError(error)) {
-    console.error('文件存储操作失败')
-    toast.error(message)
-  }
-}
-
-function defaultFile() {
+function defaultFile(): storage.NewFile {
   const now = Date.now()
   return {
     id: crypto.randomUUID(),
@@ -191,360 +106,206 @@ function defaultFile() {
   }
 }
 
-function applyCatalog(catalog: FileCatalog, setState: SetState, getState: GetState): void {
-  const state = getState()
-  if (catalog.revision > state.revision || (state.files.length === 0 && !state.isInitialized && catalog.revision === state.revision)) {
-    setState({ files: catalog.files, revision: catalog.revision })
-  }
-}
+export const useFilesStore = create<FilesState>()((set, get) => {
+  const session = createFileSession(set, get, fileWriters)
+  let initPromise: Promise<void> | null = null
 
-async function recoverCreateIntent(
-  intentToken: number,
-  previousActiveId: string | null,
-  setState: SetState,
-  getState: GetState,
-): Promise<void> {
-  if (intentToken !== activeIntentToken) {
-    return
-  }
-  const state = getState()
-  if (state.contentStatus !== 'loading' || state.activeFileId !== previousActiveId) {
-    return
-  }
-  ++contentLoadToken
-  setState({ contentFileId: null, currentContent: '', contentStatus: 'idle', contentVersion: 0 })
-  await reconcileCatalog(setState, getState, previousActiveId, intentToken)
-}
-
-async function activate(
-  id: string,
-  setState: SetState,
-  getState: GetState,
-  intentToken = activeIntentToken,
-  throwOnError = false,
-): Promise<void> {
-  if (intentToken !== activeIntentToken) {
-    return
-  }
-  if (!getState().files.some(file => file.id === id)) {
-    await reconcileCatalog(setState, getState, undefined, intentToken, throwOnError)
-    return
-  }
-  const state = getState()
-  if (state.activeFileId === id && state.contentFileId === id && (state.contentStatus === 'ready' || state.contentStatus === 'loading')) {
-    return
-  }
-
-  const previousContentId = state.contentFileId
-  if ([previousContentId, id].some(fileId => fileId && fileWriters.hasPending(fileId))) {
-    if (!await fileWriters.flushFiles([previousContentId, id])) {
-      return
-    }
-  }
-  if (intentToken !== activeIntentToken || !getState().files.some(file => file.id === id)) {
-    return
-  }
-  const loadToken = ++contentLoadToken
-  setState({ activeFileId: id, contentFileId: id, currentContent: '', contentStatus: 'loading', contentVersion: 0 })
-  writeSessionActive(id)
-  if (loadToken !== contentLoadToken || intentToken !== activeIntentToken) {
-    return
-  }
-
-  try {
-    const snapshot = await getFileSnapshot(id)
-    warnStorageUnavailable()
-    const current = getState()
-    if (loadToken !== contentLoadToken || intentToken !== activeIntentToken || current.activeFileId !== id || current.contentFileId !== id) {
-      return
-    }
-    if (!current.files.some(file => file.id === id)) {
-      await reconcileCatalog(setState, getState, undefined, intentToken, throwOnError)
-      return
-    }
-    setState(state => ({
-      currentContent: snapshot.content,
-      contentStatus: 'ready',
-      contentVersion: snapshot.version,
-      contentEpoch: state.contentEpoch + 1,
-    }))
-  }
-  catch (error) {
-    if (!throwOnError) {
-      reportStorageFailure(error)
-    }
-    if (loadToken === contentLoadToken && intentToken === activeIntentToken) {
-      setState({ contentStatus: 'idle', contentFileId: null, currentContent: '', contentVersion: 0 })
-    }
-    if (throwOnError) {
-      throw error
-    }
-  }
-}
-
-async function reconcileCatalog(
-  setState: SetState,
-  getState: GetState,
-  preferredId?: string | null,
-  intentToken = activeIntentToken,
-  throwOnError = false,
-): Promise<void> {
-  if (intentToken !== activeIntentToken) {
-    return
-  }
-  const state = getState()
-  const activeExists = state.activeFileId !== null && state.files.some(file => file.id === state.activeFileId)
-  if (activeExists) {
-    if (state.contentFileId === state.activeFileId && (state.contentStatus === 'ready' || state.contentStatus === 'loading')) {
-      return
-    }
-    await activate(state.activeFileId!, setState, getState, intentToken, throwOnError)
-    return
-  }
-
-  const sessionId = readSessionActive().id
-  const nextId = [preferredId, sessionId, state.files[0]?.id]
-    .find(candidate => candidate && state.files.some(file => file.id === candidate)) ?? null
-  if (!nextId) {
-    ++contentLoadToken
-    setState({ activeFileId: null, contentFileId: null, currentContent: '', contentStatus: 'idle', contentVersion: 0 })
-    writeSessionActive(null)
-    return
-  }
-  await activate(nextId, setState, getState, intentToken, throwOnError)
-}
-
-export const useFilesStore = create<FilesState>()((set, get) => ({
-  files: [],
-  activeFileId: null,
-  currentContent: '',
-  isInitialized: false,
-  revision: 0,
-  contentStatus: 'idle',
-  contentFileId: null,
-  contentVersion: 0,
-  contentEpoch: 0,
-
-  setFileContent: (fileId, content) => {
-    const state = get()
-    if (state.contentStatus !== 'ready' || fileId !== state.activeFileId || fileId !== state.contentFileId) {
-      return
-    }
-    ++localEditEpoch
-    set({ currentContent: content })
-    fileWriters.save(fileId, content)
-  },
-
-  replaceFileContentIfUnchanged: (fileId, expectedContent, nextContent) => {
-    const state = get()
-    if (
-      state.contentStatus !== 'ready'
-      || state.activeFileId !== fileId
-      || state.contentFileId !== fileId
-      || state.currentContent !== expectedContent
-    ) {
-      return false
-    }
-    get().setFileContent(fileId, nextContent)
-    return true
-  },
-
-  setCurrentContent: (content) => {
-    const fileId = get().contentFileId
-    if (fileId) {
-      get().setFileContent(fileId, content)
-    }
-  },
-
-  createFile: async (name, content = '') => {
-    const intentToken = ++activeIntentToken
-    const previousActiveId = get().activeFileId
-    if (!await fileWriters.flushFile(get().contentFileId)) {
-      await recoverCreateIntent(intentToken, previousActiveId, set, get)
-      throw new FileStorageError()
-    }
+  // 存储操作一成功就应用 catalog 并广播；之后的激活/正文加载失败不视为操作失败。
+  async function runMutation<T>(
+    run: () => Promise<{ catalog: FileCatalog, result: T }>,
+    pickPreferred?: (result: T) => string | null,
+    intentToken = session.tokens.intent,
+  ): Promise<T> {
     const before = get().revision
-    const id = crypto.randomUUID()
-    const now = Date.now()
+    const mutation = await run()
+    applyCatalog(mutation.catalog, set, get)
+    if (isPersistent && mutation.catalog.revision > before) {
+      notifyFilesChanged()
+    }
     try {
-      const result = await createFileRecord({
-        id,
-        name: name ?? extractH1Title(content) ?? DEFAULT_FILE_NAME,
-        content,
-        createdAt: now,
-        updatedAt: now,
-      })
-      warnStorageUnavailable()
-      applyCatalog(result.catalog, set, get)
-      await reconcileCatalog(set, get, undefined, intentToken)
-      if (intentToken === activeIntentToken && get().files.some(file => file.id === result.file.id)) {
-        ++contentLoadToken
-        set(state => ({
-          activeFileId: result.file.id,
-          contentFileId: result.file.id,
-          currentContent: content,
-          contentStatus: 'ready',
-          contentVersion: 1,
-          contentEpoch: state.contentEpoch + 1,
-        }))
-        writeSessionActive(result.file.id)
-      }
-      if (result.catalog.revision > before && !isStorageUnavailable()) {
-        publishCatalogSignal(result.catalog.revision)
-      }
-      return id
+      await session.reconcile(pickPreferred?.(mutation.result), intentToken)
     }
     catch (error) {
-      reportStorageFailure(error)
-      await recoverCreateIntent(intentToken, previousActiveId, set, get)
-      throw error
+      reportLoadFailure(error)
     }
-  },
+    return mutation.result
+  }
 
-  deleteFile: async (id) => {
-    const state = get()
-    if (!await fileWriters.flushFiles([state.contentFileId, id])) {
-      return
-    }
-    const before = get().revision
-    try {
-      const result = await deleteFileRecord(id, defaultFile())
-      warnStorageUnavailable()
-      applyCatalog(result.catalog, set, get)
-      await reconcileCatalog(set, get, result.nextFileId)
-      if (result.catalog.revision > before && !isStorageUnavailable()) {
-        publishCatalogSignal(result.catalog.revision)
-      }
-    }
-    catch (error) {
-      reportStorageFailure(error)
-      throw error
-    }
-  },
-
-  renameFile: async (id, name) => {
-    const before = get().revision
-    try {
-      const catalog = await renameFileRecord(id, name, Date.now())
-      warnStorageUnavailable()
-      applyCatalog(catalog, set, get)
-      await reconcileCatalog(set, get)
-      if (catalog.revision > before && !isStorageUnavailable()) {
-        publishCatalogSignal(catalog.revision)
-      }
-    }
-    catch (error) {
-      reportStorageFailure(error)
-      throw error
-    }
-  },
-
-  switchFile: async (id) => {
-    const state = get()
-    const isAlreadyActive = state.activeFileId === id
-      && state.contentFileId === id
-      && (state.contentStatus === 'ready' || state.contentStatus === 'loading')
-    if (isAlreadyActive || !state.files.some(file => file.id === id)) {
-      return
-    }
-    const intentToken = ++activeIntentToken
-    await activate(id, set, get, intentToken)
-  },
-
-  getActiveFile: () => get().files.find(file => file.id === get().activeFileId),
-
-  initialize: async () => {
+  async function initialize(): Promise<void> {
     if (get().isInitialized) {
       return
     }
     if (initPromise) {
       return initPromise
     }
-    const initialIntent = activeIntentToken
+    const initialIntent = session.tokens.intent
     initPromise = (async () => {
-      const legacy = readLegacyState()
-      const session = readSessionActive()
-      const catalog = await initializeFileStorage({ legacyFiles: legacy.files, defaultFile: defaultFile() })
-      warnStorageUnavailable()
-      if (!isStorageUnavailable() && legacy.exists) {
-        try {
-          localStorage.removeItem(LEGACY_KEY)
-        }
-        catch {
-          // 迁移清理失败不阻塞初始化。
-        }
+      const { catalog, persistent } = await storage.initializeFileStorage(defaultFile())
+      isPersistent = persistent
+      if (!persistent) {
+        toast.warning(STORAGE_UNAVAILABLE_MESSAGE)
       }
       applyCatalog(catalog, set, get)
-      const preferred = session.exists ? session.id : legacy.activeFileId
-      await reconcileCatalog(set, get, initialIntent === activeIntentToken ? preferred : undefined, activeIntentToken, true)
+      const preferred = initialIntent === session.tokens.intent ? session.readSessionActiveId() : undefined
+      await session.reconcile(preferred, session.tokens.intent)
       set({ isInitialized: true })
     })().catch((error) => {
-      reportStorageFailure(error)
+      reportOperationFailure(error)
       throw error
     }).finally(() => {
       initPromise = null
     })
     return initPromise
-  },
+  }
 
-  syncExternalChanges: async () => {
-    try {
-      if (!get().isInitialized) {
-        if (initPromise) {
-          await initPromise
+  const syncExternalChanges = createExternalSync({
+    getState: get,
+    writers: fileWriters,
+    session,
+    set,
+    isInitialized: () => get().isInitialized,
+    // 进行中的初始化会被复用；失败后的同步即重试，提示由 initialize 自己负责。
+    ensureInitialized: initialize,
+    reportLoadFailure,
+    onRemoteFileDeleted: reportRemoteFileDeleted,
+  })
+
+  return {
+    files: [],
+    activeFileId: null,
+    currentContent: '',
+    isInitialized: false,
+    revision: 0,
+    contentStatus: 'idle',
+    contentFileId: null,
+    contentVersion: 0,
+    contentEpoch: 0,
+
+    setFileContent: (fileId, content) => {
+      const state = get()
+      if (state.contentStatus !== 'ready' || fileId !== state.activeFileId || fileId !== state.contentFileId) {
+        return
+      }
+      ++session.tokens.edit
+      set({ currentContent: content })
+      fileWriters.save(fileId, content)
+    },
+
+    replaceFileContentIfUnchanged: (fileId, expectedContent, nextContent) => {
+      const state = get()
+      if (!isFileContentReady(state) || fileId !== state.activeFileId || state.currentContent !== expectedContent) {
+        return false
+      }
+      get().setFileContent(fileId, nextContent)
+      return true
+    },
+
+    createFile: async (name, content = '') => {
+      const intentToken = ++session.tokens.intent
+      const previousActiveId = get().activeFileId
+      try {
+        if (!await fileWriters.flushFile(get().contentFileId)) {
+          throw SAVE_ABORT_ERROR
         }
-        else {
-          await get().initialize()
+        const now = Date.now()
+        const file = await runMutation(
+          async () => {
+            const { catalog, file } = await storage.createFile({
+              id: crypto.randomUUID(),
+              name: name ?? extractH1Title(content) ?? DEFAULT_FILE_NAME,
+              content,
+              createdAt: now,
+              updatedAt: now,
+            })
+            return { catalog, result: file }
+          },
+          undefined,
+          intentToken,
+        )
+        requestPersistOnce()
+        if (intentToken === session.tokens.intent && get().files.some(item => item.id === file.id)) {
+          ++session.tokens.load
+          set(state => ({
+            activeFileId: file.id,
+            contentFileId: file.id,
+            currentContent: content,
+            contentStatus: 'ready',
+            contentVersion: 1,
+            contentEpoch: state.contentEpoch + 1,
+          }))
+          session.writeSessionActive(file.id)
         }
+        return file.id
       }
+      catch (error) {
+        if (error !== SAVE_ABORT_ERROR) {
+          reportOperationFailure(error)
+        }
+        await session.recoverCreateIntent(intentToken, previousActiveId)
+        throw error
+      }
+    },
 
-      const catalog = await getFileCatalog()
-      warnStorageUnavailable()
-      applyCatalog(catalog, set, get)
-      await reconcileCatalog(set, get)
+    deleteFile: async (id) => {
+      if (!await fileWriters.flushFiles([get().contentFileId, id])) {
+        throw SAVE_ABORT_ERROR
+      }
+      try {
+        await runMutation(
+          async () => {
+            const { catalog, nextFileId } = await storage.deleteFile(id, defaultFile())
+            return { catalog, result: nextFileId }
+          },
+          result => result,
+        )
+      }
+      catch (error) {
+        reportOperationFailure(error)
+        throw error
+      }
+    },
 
-      let state = get()
-      if (state.contentStatus !== 'ready' || !state.contentFileId || state.contentFileId !== state.activeFileId) {
+    renameFile: async (id, name) => {
+      try {
+        await runMutation(async () => ({ catalog: await storage.renameFile(id, name), result: undefined }))
+      }
+      catch (error) {
+        reportOperationFailure(error)
+        throw error
+      }
+    },
+
+    switchFile: async (id) => {
+      if (!get().files.some(file => file.id === id)) {
         return
       }
-      const fileId = state.contentFileId
-      if (fileWriters.hasPending(fileId) && !await fileWriters.flushFile(fileId)) {
-        return
-      }
-      state = get()
-      if (state.contentStatus !== 'ready' || state.contentFileId !== fileId || state.activeFileId !== fileId) {
-        return
-      }
-      const editEpoch = localEditEpoch
-      const snapshot = await getFileSnapshot(fileId)
-      warnStorageUnavailable()
-      const current = get()
-      if (
-        editEpoch === localEditEpoch
-        && current.contentStatus === 'ready'
-        && current.activeFileId === fileId
-        && current.contentFileId === fileId
-        && snapshot.version > current.contentVersion
-      ) {
-        set(state => ({
-          currentContent: snapshot.content,
-          contentVersion: snapshot.version,
-          contentEpoch: state.contentEpoch + 1,
-        }))
-      }
-    }
-    catch (error) {
-      reportStorageFailure(error)
-    }
-  },
+      // 每次都先登记最新意图，过期意图在 flush 或加载完成后自行退出。
+      const intentToken = ++session.tokens.intent
+      await session.activate(id, intentToken).catch(reportLoadFailure)
+    },
 
-  refreshCatalog: () => get().syncExternalChanges(),
-  flushPendingSaves: () => fileWriters.flushAll(),
-}))
+    initialize,
+
+    syncExternalChanges,
+
+    flushPendingSaves: () => fileWriters.flushAll(),
+  }
+})
+
+function reportRemoteFileDeleted(id: string): void {
+  const state = useFilesStore.getState()
+  if (notifiedRemoteDeletes.has(id) || (id !== state.activeFileId && id !== state.contentFileId)) {
+    return
+  }
+  notifiedRemoteDeletes.add(id)
+  toast.warning(REMOTE_DELETE_MESSAGE)
+}
 
 function handleSaveResult(id: string, version: number | false): void {
-  warnStorageUnavailable()
   if (version === false) {
+    // 文件已被其他标签删除：提示后由外部同步切换到其他文件。
+    reportRemoteFileDeleted(id)
+    void useFilesStore.getState().syncExternalChanges()
     return
   }
   useFilesStore.setState((state) => {
@@ -553,7 +314,8 @@ function handleSaveResult(id: string, version: number | false): void {
     }
     return { contentVersion: Math.max(state.contentVersion, version) }
   })
-  if (!isStorageUnavailable()) {
-    publishContentSignal(id, version)
+  requestPersistOnce()
+  if (isPersistent) {
+    notifyFilesChanged()
   }
 }

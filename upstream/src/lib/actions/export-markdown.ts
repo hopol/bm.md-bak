@@ -8,7 +8,8 @@ export function exportMarkdown(content: string, fileName?: string) {
     return
   }
 
-  const activeFile = useFilesStore.getState().getActiveFile()
+  const filesState = useFilesStore.getState()
+  const activeFile = filesState.files.find(file => file.id === filesState.activeFileId)
   const exportFileName = fileName ?? activeFile?.name ?? 'bm.md'
 
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })

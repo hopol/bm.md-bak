@@ -83,7 +83,7 @@ pnpm shadcn add shimmer-button --registry @magicui
 
 Zustand 持久化 key 必须以 `bm.md.` 开头，避免与已有 IndexedDB / localStorage 数据冲突。
 
-`filesStore` 是例外，不使用 Zustand persist：文件 catalog 与正文由 `src/lib/file-storage.ts` 在 IndexedDB `bm.md` v2 中事务化管理；活动文件只写 sessionStorage；localStorage 的 `bm.md.files.signal` 仅用于跨标签失效通知。不要重新引入全量 localStorage 快照同步。
+`filesStore` 是例外，不使用 Zustand persist：文件 catalog 与正文由 `src/lib/file-storage` 三级存储——OPFS 可用时都在 OPFS（根目录 `catalog.json` + `<id>.md`），否则在 IndexedDB `bm.md` v2（catalog/files 两个 store），再否则只存内存；首次成功编辑后申请一次 `navigator.storage.persist()`。活动文件只写 sessionStorage；跨标签失效通知使用 BroadcastChannel 频道 `bm.md.files`。不要重新引入 localStorage 快照或信号同步。
 
 ## 测试环境
 

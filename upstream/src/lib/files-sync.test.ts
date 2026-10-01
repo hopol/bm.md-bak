@@ -1,40 +1,87 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  FILES_SIGNAL_KEY,
-  parseFilesSignal,
-  publishCatalogSignal,
-  publishContentSignal,
-} from './files-sync'
+type Listener = () => void
+
+class FakeBroadcastChannel {
+  static instances: FakeBroadcastChannel[] = []
+  name: string
+  listeners = new Set<Listener>()
+  posted: unknown[] = []
+
+  constructor(name: string) {
+    this.name = name
+    FakeBroadcastChannel.instances.push(this)
+  }
+
+  postMessage(message: unknown): void {
+    this.posted.push(message)
+  }
+
+  addEventListener(type: string, listener: Listener): void {
+    if (type === 'message') {
+      this.listeners.add(listener)
+    }
+  }
+
+  removeEventListener(_type: string, listener: Listener): void {
+    this.listeners.delete(listener)
+  }
+
+  emit(): void {
+    for (const listener of this.listeners) {
+      listener()
+    }
+  }
+
+  close(): void {
+    // 无需关闭。
+  }
+}
+
+type FilesSyncModule = typeof import('./files-sync')
+
+let filesSync: FilesSyncModule
 
 describe('files-sync', () => {
-  beforeEach(() => {
-    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+  beforeEach(async () => {
+    FakeBroadcastChannel.instances = []
+    vi.resetModules()
+    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+    filesSync = await import('./files-sync')
   })
 
-  it('解析 catalog/content 判别联合并忽略损坏值', () => {
-    expect(parseFilesSignal('{"kind":"catalog","revision":2,"nonce":"n"}')).toEqual({ kind: 'catalog', revision: 2, nonce: 'n' })
-    expect(parseFilesSignal('{"kind":"content","fileId":"one","version":3,"nonce":"n"}')).toEqual({ kind: 'content', fileId: 'one', version: 3, nonce: 'n' })
-    expect(parseFilesSignal('{"revision":2,"nonce":"n"}')).toBeNull()
-    expect(parseFilesSignal('{"kind":"content","fileId":"one","version":"3","nonce":"n"}')).toBeNull()
-    expect(parseFilesSignal('损坏')).toBeNull()
+  it('notify 向 bm.md.files 频道广播空消息', () => {
+    filesSync.notifyFilesChanged()
+    expect(FakeBroadcastChannel.instances).toHaveLength(1)
+    expect(FakeBroadcastChannel.instances[0].name).toBe('bm.md.files')
+    expect(FakeBroadcastChannel.instances[0].posted).toEqual([null])
   })
 
-  it('发布 catalog 和 content 通知', () => {
-    vi.spyOn(crypto, 'randomUUID')
-      .mockReturnValueOnce('00000000-0000-4000-8000-000000000001')
-      .mockReturnValueOnce('00000000-0000-4000-8000-000000000002')
-    publishCatalogSignal(7)
-    publishContentSignal('one', 8)
-    expect(localStorage.setItem).toHaveBeenNthCalledWith(
-      1,
-      FILES_SIGNAL_KEY,
-      JSON.stringify({ kind: 'catalog', revision: 7, nonce: '00000000-0000-4000-8000-000000000001' }),
-    )
-    expect(localStorage.setItem).toHaveBeenNthCalledWith(
-      2,
-      FILES_SIGNAL_KEY,
-      JSON.stringify({ kind: 'content', fileId: 'one', version: 8, nonce: '00000000-0000-4000-8000-000000000002' }),
-    )
+  it('多个订阅者都收到通知，退订后不再收到', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const unsubscribe = filesSync.onFilesChanged(first)
+    filesSync.onFilesChanged(second)
+    filesSync.notifyFilesChanged()
+    FakeBroadcastChannel.instances[0].emit()
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledOnce()
+
+    unsubscribe()
+    FakeBroadcastChannel.instances[0].emit()
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledTimes(2)
+  })
+
+  it('broadcastChannel 不可用时为 no-op', async () => {
+    vi.stubGlobal('BroadcastChannel', undefined)
+    vi.resetModules()
+    filesSync = await import('./files-sync')
+
+    const listener = vi.fn()
+    expect(() => {
+      filesSync.notifyFilesChanged()
+      filesSync.onFilesChanged(listener)()
+    }).not.toThrow()
   })
 })

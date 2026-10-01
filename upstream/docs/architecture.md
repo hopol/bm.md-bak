@@ -35,18 +35,18 @@ bm.md 是一个纯前端优先、支持边缘与 Node.js 部署的 Markdown 排�
 
 ## 技术栈与依赖选型
 
-| 领域               | 选型                                        | 作用与说明                                                  |
-| :----------------- | :------------------------------------------ | :---------------------------------------------------------- |
-| **应用框架**       | TanStack Start (React 19 + TanStack Router) | 同构路由、服务端轻量加载与强类型客户端导航                  |
-| **构建与打包**     | Vite 8 + Rolldown/Babel (React Compiler)    | 现代 ESM 极速构建，编译期自动执行 React 依赖优化            |
-| **样式与组件**     | Tailwind CSS 4 + shadcn/ui                  | 现代原子化 CSS；无障碍底层原语使用 `@base-ui/react`         |
-| **语言与类型**     | TypeScript (`strict: true`)                 | 全链路严格类型检查与推导                                    |
-| **参数与数据校验** | Zod                                         | 统一校验 API、CLI 选项与存储数据边界                        |
-| **状态管理**       | Zustand                                     | 细粒度、非侵入式的模块化状态管理                            |
-| **本地持久化**     | IndexedDB (`idb`) + Storage 信号            | 事务化本地文件库与跨标签页低开销通知                        |
-| **端侧 OCR 识别**  | `@paddleocr/paddleocr-js`                   | 浏览器端按需加载的 OCR 引擎（ONNX Runtime Web + OpenCV.js） |
-| **测试框架**       | Vitest (`fake-indexeddb`)                   | 单元测试、集成测试与离线存储模拟                            |
-| **部署运行时**     | Nitro                                       | 跨运行时适配（Cloudflare Workers, ESA, EdgeOne, Node 等）   |
+| 领域               | 选型                                        | 作用与说明                                                        |
+| :----------------- | :------------------------------------------ | :---------------------------------------------------------------- |
+| **应用框架**       | TanStack Start (React 19 + TanStack Router) | 同构路由、服务端轻量加载与强类型客户端导航                        |
+| **构建与打包**     | Vite 8 + Rolldown/Babel (React Compiler)    | 现代 ESM 极速构建，编译期自动执行 React 依赖优化                  |
+| **样式与组件**     | Tailwind CSS 4 + shadcn/ui                  | 现代原子化 CSS；无障碍底层原语使用 `@base-ui/react`               |
+| **语言与类型**     | TypeScript (`strict: true`)                 | 全链路严格类型检查与推导                                          |
+| **参数与数据校验** | Zod                                         | 统一校验 API、CLI 选项与存储数据边界                              |
+| **状态管理**       | Zustand                                     | 细粒度、非侵入式的模块化状态管理                                  |
+| **本地持久化**     | OPFS / IndexedDB (`idb`) + BroadcastChannel | 本地文件库三级降级（OPFS → IndexedDB → 内存）与跨标签页低开销通知 |
+| **端侧 OCR 识别**  | `@paddleocr/paddleocr-js`                   | 浏览器端按需加载的 OCR 引擎（ONNX Runtime Web + OpenCV.js）       |
+| **测试框架**       | Vitest (`fake-indexeddb`)                   | 单元测试、集成测试与离线存储模拟                                  |
+| **部署运行时**     | Nitro                                       | 跨运行时适配（Cloudflare Workers, ESA, EdgeOne, Node 等）         |
 
 ### 关键依赖说明
 
@@ -82,7 +82,8 @@ src/
 │   ├── actions/         # 用户导出、复制与格式化动作
 │   ├── document/        # AnyDoc WASM 多格式文档解析 Worker 与协议
 │   ├── pdf/             # Takumi PDF WASM 分页排版 Worker、字体加载与快照
-│   ├── file-storage.ts  # IndexedDB v2 事务化文件存储事实源
+│   ├── file-storage/    # 本地文件库事实源：OPFS（catalog.json + `<id>.md`）优先，回退 IndexedDB v2，再回退内存
+│   ├── files-sync.ts    # BroadcastChannel 跨标签变更通知
 │   ├── file-importer.ts # 多格式文档导入、分类与标签初始化
 │   ├── image-import.ts  # 图片导入适配器（OCR 识别与图床上传分流）
 │   ├── ocr.ts           # PaddleOCR.js 引擎生命周期管理与互斥串行队列
@@ -209,9 +210,9 @@ Word、PPT、Excel、PDF 等外部文件通过独立 Document Worker 加载 AnyD
 │ Store            │ 职责与持久化策略                                        |
 ├──────────────────┼────────────────────────────────────────────────────────┤
 │ filesStore       │ • 负责文件元数据目录 (catalog) 与文档正文               │
-│                  │ • 事务化存储于 IndexedDB (bm.md v2)                    │
+│                  │ • 存储后端三级降级：OPFS → IndexedDB (bm.md v2) → 内存   │
 │                  │ • 活动文件 ID 存入 sessionStorage (多标签隔离)          │
-│                  │ • 跨标签同步仅依靠 localStorage 发送失效信号            │
+│                  │ • 跨标签同步仅依靠 BroadcastChannel 发送失效信号        │
 ├──────────────────┼────────────────────────────────────────────────────────┤
 │ editorStore      │ • 负责换行规则 (breaks)、OCR 开关与脚注转换等编辑器配置│
 │                  │ • 持久化于 localStorage (bm.md.editor)                  │
@@ -225,11 +226,14 @@ Word、PPT、Excel、PDF 等外部文件通过独立 Document Worker 加载 AnyD
 └──────────────────┴────────────────────────────────────────────────────────┘
 ```
 
-### IndexedDB v2 事务模型设计
+### 本地文件库存储模型
 
-- **原子提交**：文件新建、重命名、删除操作，均在同一事务中读取最新 catalog 并更新正文 ObjectStore，防止元数据与正文出现孤立提交。
+- **三级后端**：OPFS 可用时 catalog 与正文都在 OPFS（根目录 `catalog.json` + `<id>.md`）；否则全部存 IndexedDB（`bm.md` v2，catalog/files 两个 ObjectStore）；IndexedDB 也打不开时驻留内存并在初始化时提示。
+- **跨会话保护**：IDB 降级模式首次初始化会在 catalog 记录写入 `contentBackend: 'indexeddb'` 标记；之后会话即使 OPFS 可用（如 Safari 升级）也继续读 IDB。OPFS 模式靠 `catalog.json` 的存在性判断，不需要标记。
+- **一致性**：所有写操作经同名 Web Lock（`bm.md.files`，exclusive）串行执行，读操作申请 shared 锁；create 先写正文再提交元数据（失败回滚正文），save 先写正文再提交 `version`+1，delete 先提交元数据再删正文。
 - **并发与版本安全**：保存正文前先确认 catalog 中文档依然存在，随后递增正文独立 `version`，杜绝文件被删除后迟到的自动保存重新“复活”文件。
-- **防抖保存**：连续键盘输入合并在 150ms 尾随窗口内提交，切换文件或浏览器失焦时立即强行 flush。
+- **持久化申请**：首次成功保存或创建文件后调用一次 `navigator.storage.persist()`（尽力而为，仅持久化模式）。
+- **防抖保存**：首次编辑立即提交，后续编辑在 150ms 尾随窗口内合并，切换文件或浏览器失焦时立即强行 flush。
 
 ---
 

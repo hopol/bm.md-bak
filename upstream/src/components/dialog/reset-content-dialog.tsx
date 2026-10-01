@@ -19,11 +19,14 @@ interface ResetContentDialogProps {
 }
 
 export function ResetContentDialog({ open, onOpenChange }: ResetContentDialogProps) {
-  const setCurrentContent = useFilesStore(state => state.setCurrentContent)
+  const setFileContent = useFilesStore(state => state.setFileContent)
 
   const handleConfirm = () => {
     trackEvent('editor', 'reset', 'menu')
-    setCurrentContent(defaultMarkdown)
+    const { contentFileId } = useFilesStore.getState()
+    if (contentFileId) {
+      setFileContent(contentFileId, defaultMarkdown)
+    }
     onOpenChange(false)
   }
 

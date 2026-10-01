@@ -66,13 +66,12 @@ async function syncBoth(first: Tab, second: Tab): Promise<void> {
 
 beforeEach(async () => {
   Object.defineProperty(globalThis, 'window', { value: {}, configurable: true })
-  vi.stubGlobal('localStorage', memoryStorage())
   await deleteDatabase()
 })
 
 afterEach(async () => {
   await Promise.all(tabs.map(tab => tab.store.getState().flushPendingSaves()))
-  await Promise.all(tabs.splice(0).map(tab => tab.storage.__closeFileStorage()))
+  await Promise.all(tabs.splice(0).map(tab => tab.storage.__resetFileStorage()))
   vi.resetModules()
   await deleteDatabase()
   vi.unstubAllGlobals()

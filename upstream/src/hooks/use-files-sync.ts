@@ -1,62 +1,36 @@
 import { useEffect } from 'react'
 
-import { FILES_SIGNAL_KEY, parseFilesSignal } from '@/lib/files-sync'
+import { onFilesChanged } from '@/lib/files-sync'
 import { useFilesStore } from '@/stores/files'
+
+function requestSync(): void {
+  void useFilesStore.getState().syncExternalChanges().catch(() => undefined)
+}
 
 export function useFilesSync() {
   useEffect(() => {
-    let active = true
-    let inFlight = false
-    let pending = false
-
-    const requestSync = () => {
-      if (inFlight) {
-        pending = true
-        return
-      }
-      inFlight = true
-      void useFilesStore.getState().syncExternalChanges().catch(() => undefined).finally(() => {
-        if (!active) {
-          return
-        }
-        inFlight = false
-        if (pending) {
-          pending = false
-          requestSync()
-        }
-      })
+    const flush = () => {
+      void useFilesStore.getState().flushPendingSaves().catch(() => undefined)
     }
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === FILES_SIGNAL_KEY && parseFilesSignal(event.newValue)) {
-        requestSync()
-      }
-    }
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         requestSync()
       }
-      else if (document.visibilityState === 'hidden') {
-        void useFilesStore.getState().flushPendingSaves().catch(() => undefined)
+      else {
+        flush()
       }
     }
 
-    const handlePageHide = () => {
-      void useFilesStore.getState().flushPendingSaves().catch(() => undefined)
-    }
-
-    window.addEventListener('storage', handleStorageChange)
+    const unsubscribe = onFilesChanged(requestSync)
     window.addEventListener('focus', requestSync)
-    window.addEventListener('pagehide', handlePageHide)
+    window.addEventListener('pagehide', flush)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     requestSync()
 
     return () => {
-      active = false
-      window.removeEventListener('storage', handleStorageChange)
+      unsubscribe()
       window.removeEventListener('focus', requestSync)
-      window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])

@@ -17,13 +17,10 @@ import { MARKDOWN_FILE_EXTENSIONS } from './src/lib/markdown-file.ts'
 const require = createRequire(import.meta.url)
 const platformConfig = resolvePlatformConfig(env)
 const codemirrorPackages = [
-  '@codemirror/autocomplete',
   '@codemirror/commands',
   '@codemirror/lang-markdown',
   '@codemirror/language',
   '@codemirror/language-data',
-  '@codemirror/lint',
-  '@codemirror/search',
   '@codemirror/state',
   '@codemirror/view',
 ]
