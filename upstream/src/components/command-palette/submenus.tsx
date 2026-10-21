@@ -44,7 +44,7 @@ export function CodeThemeMenu({ actions }: SubmenuProps) {
 export function MermaidThemeMenu({ actions }: SubmenuProps) {
   return (
     <OptionSubmenu
-      heading="流程图主题"
+      heading="图表主题"
       items={mermaidThemes}
       currentValue={actions.mermaidTheme}
       Icon={Workflow}

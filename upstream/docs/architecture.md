@@ -53,6 +53,7 @@ bm.md 是一个纯前端优先、支持边缘与 Node.js 部署的 Markdown 排�
 - `mcp-config`：通过 GitHub 依赖保留。项目在 MCP 配置生成面板中依赖其 `getClients`、`transformConfig` 与 `mcp-config/src/index.js`，当前 npm 公开发行版本不包含对应导出。
 - `takumi-pdf` 与 `@takumi-rs/helpers`：作为统一升级组维护，负责浏览器端 WASM 驱动的 A4 矢量 PDF 排版。
 - `@paddleocr/paddleocr-js`：按需加载的端侧文字识别 SDK，运行于专用 Worker 中，结合 ONNX Runtime Web 与 OpenCV.js 处理多语言端侧双模型推理。
+- `pele`（精确 1.6.0）：承担纯文本 Mermaid 到矢量 SVG 的跨端渲染（参考 [Pele 官网](https://pele.run) 与 [GitHub 源码](https://github.com/obsidianmd/pele/tree/1.6.0)）。渲染实现在 Web Worker、Cloudflare Workers 与 Node.js 共享，无 DOM 与 native Canvas 依赖；文本测量在 Worker 优先使用 OffscreenCanvas，无 Canvas 环境回退至内置 metrics，接受微小尺寸差异。样式固化使用 `postcss-value-parser` 作为 CSS 值解析器，仅解析与计算值而不依赖 DOM。默认禁止图表外链与外部图片，单图限制 50,000 字符输入、4,000,000 字符输出与 5,000 条流程图连线。支持上游 33 种图表类型，输出统一经过安全清洗与样式固化。
 
 ---
 
@@ -145,7 +146,7 @@ Markdown 转换为最终内联 HTML 的全流程如下：
    - 识别 GitHub Alert 语法并注入提示块结构。
    - 通过 KaTeX 服务端/Worker 静态渲染数学公式。
    - 代码块通过 highlight.js 执行语法高亮。
-   - Mermaid 代码块由 `beautiful-mermaid` 渲染为 SVG，并执行安全标签清理。
+   - Mermaid 代码块由 `pele`（1.6.0）渲染为矢量 SVG，经安全清洗后固化字体与颜色（深色主题包含显式背景，无需用户配置环境 shim）。
    - Infographic 代码块由 `@antv/infographic` SSR 引擎转换为 SVG 卡片。
 5. **平台差异化适配**：
    - 通用 HTML：保持标准语义化标签。

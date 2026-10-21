@@ -188,6 +188,23 @@ describe('cli entry', () => {
     expect(result.stdout).toContain('集成标题')
   }, 10_000)
 
+  it.each(['', 'dark'])('render 真实 Mermaid 支持主题 %s 和微信内联输出', async (theme) => {
+    const result = await runCli(['render', '--platform', 'wechat', ...(theme ? ['--mermaid-theme', theme] : [])], '```mermaid\nflowchart TD\nA[中文入口] --> B[完成]\n```')
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('<svg')
+    expect(result.stdout).toContain('中文入口')
+    expect(result.stdout).not.toContain('figure-mermaid-error')
+    expect(result.stdout).not.toMatch(/var\(|currentColor|color-mix\(/i)
+  }, 15_000)
+
+  it('render 明确拒绝旧 Mermaid 主题', async () => {
+    const result = await runCli(['render', '--mermaid-theme', 'github-dark'], '# 标题')
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain('mermaidTheme')
+  }, 10_000)
+
   it('extract 支持 stdin 管道', async () => {
     const result = await runCli(['extract'], '# 管道标题\n\n[链接](https://example.com)')
 

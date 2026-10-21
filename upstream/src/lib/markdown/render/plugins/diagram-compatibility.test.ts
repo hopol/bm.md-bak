@@ -1,8 +1,11 @@
+import { visit } from 'unist-util-visit'
 import { describe, expect, it, vi } from 'vitest'
+import { getTextContent } from '@/lib/markdown/hast'
 import { infographicPaletteIds, infographicThemeIds } from '@/themes/infographic-theme'
 import { markdownStyleIds, resolveDiagramFontFamily } from '@/themes/markdown-style/metadata'
 import { mermaidThemeIds } from '@/themes/mermaid-theme'
 import { render } from '../html'
+import { parseSvg } from './rehype-svg-renderer'
 
 function fenced(language: 'mermaid' | 'infographic', code: string): string {
   return `\`\`\`${language}\n${code}\n\`\`\``
@@ -12,8 +15,17 @@ function expectDiagram(html: string, type: 'mermaid' | 'infographic', text: stri
   expect(html).toContain(`class="figure-${type}"`)
   expect(html).toContain('<svg')
   expect(html).toContain('</svg>')
-  // 关键标签必须出现在可见文本载体中：mermaid 为 <text>，infographic 为 foreignObject 内的 span
-  expect(html).toMatch(new RegExp(`(xhtml">[^<]*|<text[^>]*>)\\s*${text}`))
+  if (type === 'mermaid') {
+    const visible: string[] = []
+    visit(parseSvg(html.slice(html.indexOf('<svg'))), 'element', (node) => {
+      if (node.tagName === 'text')
+        visible.push(getTextContent(node))
+    })
+    expect(visible.join(' ')).toContain(text)
+  }
+  else {
+    expect(html).toMatch(new RegExp(`xhtml">[^<]*${text}`))
+  }
   expect(html).not.toContain(`figure-${type}-error`)
   expect(html).not.toContain('NaN')
   expect(html).toMatch(/style="[^"]*width:100%;max-width:(?:100%|\d+(?:\.\d+)?px);height:auto;display:block;margin:0 auto;/)
@@ -32,10 +44,10 @@ describe('mermaid compatibility matrix', () => {
   it.each([
     ['flowchart TD', '', 'flowchart TD\n  A[开始] --> B[校验]\n  B --> C{通过?}\n  C -->|是| D[完成]\n  C -->|否| E[重试]', '通过?'],
     ['flowchart LR', '', 'flowchart LR\n  Alpha --> Beta --> Gamma', 'Gamma'],
-    ['state', 'zinc-dark', 'stateDiagram-v2\n  [*] --> Idle\n  Idle --> Processing: start\n  Processing --> Complete: done\n  Complete --> [*]', 'start'],
-    ['sequence', 'tokyo-night', 'sequenceDiagram\n  用户->>服务: 提交请求\n  服务->>数据库: 查询记录\n  数据库-->>服务: 返回结果\n  服务-->>用户: 响应数据', '提交请求'],
+    ['state', 'dark', 'stateDiagram-v2\n  [*] --> Idle\n  Idle --> Processing: start\n  Processing --> Complete: done\n  Complete --> [*]', 'start'],
+    ['sequence', 'dark', 'sequenceDiagram\n  用户->>服务: 提交请求\n  服务->>数据库: 查询记录\n  数据库-->>服务: 返回结果\n  服务-->>用户: 响应数据', '提交请求'],
     ['class', '', 'classDiagram\n  Animal <|-- Dog\n  Animal <|-- Cat\n  Animal : +String name\n  Dog : +fetch()\n  Cat : +purr()', 'Animal'],
-    ['ER', 'zinc-dark', 'erDiagram\n  CUSTOMER {\n    string id PK\n    string name\n  }\n  ORDER {\n    string id PK\n    date placed_at\n  }\n  CUSTOMER ||--o{ ORDER : places', 'CUSTOMER'],
+    ['ER', 'dark', 'erDiagram\n  CUSTOMER {\n    string id PK\n    string name\n  }\n  ORDER {\n    string id PK\n    date placed_at\n  }\n  CUSTOMER ||--o{ ORDER : places', 'CUSTOMER'],
   ] as const)('renders %s through the Markdown pipeline', async (_type, theme, syntax, text) => {
     const html = await render({ markdown: fenced('mermaid', syntax), mermaidTheme: theme })
 
@@ -47,25 +59,15 @@ describe('mermaid compatibility matrix', () => {
       expect(html).toContain('placed_at')
       expect(html).toMatch(/<text[^>]*>[^<]*CUSTOMER/)
     }
-    else {
-      // 关键标签必须是渲染的 <text>，而不是 <title> 提示
-      expect(html).toMatch(new RegExp(`<text[^>]*>[^<]*${text}`))
-    }
   })
 
-  it('marks unsupported XY charts as render errors', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const html = await render({
-        markdown: fenced('mermaid', 'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  bar [30, 60, 45]'),
-      })
-
-      expect(html).toContain('class="figure-mermaid figure-mermaid-error"')
-      expect(html).not.toContain('<svg')
-    }
-    finally {
-      error.mockRestore()
-    }
+  it.each([
+    ['pie', 'pie\n "产品甲": 60\n "产品乙": 40', '产品甲'],
+    ['gantt', 'gantt\n dateFormat YYYY-MM-DD\n 开发 :2026-01-01, 3d', '开发'],
+    ['mindmap', 'mindmap\n 根节点\n  子节点', '子节点'],
+    ['xychart', 'xychart-beta\n x-axis [Jan, Feb, Mar]\n bar [30, 60, 45]', 'Jan'],
+  ])('renders %s charts', async (_type, code, text) => {
+    expectDiagram(await render({ markdown: fenced('mermaid', code) }), 'mermaid', text)
   })
 })
 
@@ -151,7 +153,7 @@ describe('diagram font follows markdown style', () => {
   const mermaidSyntax = 'flowchart TD\n  A[开始] --> B[结束]'
   const infographicSyntax = listSyntax
 
-  it.each(markdownStyleIds)('%s 风格下 Mermaid 携带 serif/sans-serif 字体族，Inter 不再控制输出', async (styleId) => {
+  it.each(markdownStyleIds)('%s 风格下 Mermaid 携带排版字体族', async (styleId) => {
     const expectedFamily = resolveDiagramFontFamily(styleId)
     const html = await render({
       markdown: fenced('mermaid', mermaidSyntax),
@@ -159,9 +161,7 @@ describe('diagram font follows markdown style', () => {
     })
 
     expectDiagram(html, 'mermaid', '开始')
-    // 字体族写入 SVG 内部 <style> 的 text 规则（juice 不会抽走 SVG 命名空间内的样式）
-    expect(html).toContain(`text { font-family: ${expectedFamily};`)
-    expect(html).not.toContain('\'Inter\'')
+    expect(parseSvg(html.slice(html.indexOf('<svg'))).properties.style).toContain(`font-family:${expectedFamily}`)
   }, 10_000)
 
   it.each(markdownStyleIds)('%s 风格下 Infographic 根节点携带 serif/sans-serif 字体族，PuHuiTi 不再控制输出', async (styleId) => {
@@ -190,6 +190,6 @@ describe('diagram font follows markdown style', () => {
       markdownStyle: 'not-a-style',
     })
 
-    expect(html).toContain('text { font-family: serif;')
+    expect(parseSvg(html.slice(html.indexOf('<svg'))).properties.style).toContain('font-family:serif')
   })
 })

@@ -11,6 +11,22 @@ function expectNoNativeLists(html: string): void {
 }
 
 describe('wechat render adapter', () => {
+  it('深色图表可独立提取且不依赖变量或页面样式', async () => {
+    const html = await render({
+      markdown: '```mermaid\nflowchart TD\n A[开始] --> B[结束]\n```',
+      platform: 'wechat',
+      mermaidTheme: 'dark',
+      markdownStyle: 'blueprint',
+    })
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>') + 6)
+    expect(svg).toContain('#18181b')
+    expect(svg).toContain('font-family:sans-serif')
+    expect(svg).toContain('class="pele-marker"')
+    expect(svg).not.toMatch(/var\(|currentcolor|color-mix\(|--pele-/i)
+    expect(html).toContain('data-bm-rich="mermaid"')
+    expect(html).not.toContain('figure-mermaid-error')
+  })
+
   it('converts external links to footnotes and removes href', async () => {
     const html = await render({
       markdown: '[示例](https://example.com)',

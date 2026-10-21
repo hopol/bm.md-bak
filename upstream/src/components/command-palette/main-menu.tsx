@@ -169,7 +169,7 @@ function AppearanceGroup({ actions, setSubMenu }: MainMenuProps) {
       </CommandItem>
       <CommandItem onSelect={() => setSubMenu('mermaidTheme')}>
         <Workflow className="size-4" />
-        流程图主题
+        图表主题
         <CommandShortcut><ChevronRight className="size-4" /></CommandShortcut>
       </CommandItem>
       <CommandItem onSelect={() => setSubMenu('infographicTheme')}>

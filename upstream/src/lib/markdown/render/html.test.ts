@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { render as renderPele } from 'pele'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, renderPreview } from './html'
+
+vi.mock('pele', async (importOriginal) => {
+  const original = await importOriginal<typeof import('pele')>()
+  return { ...original, render: vi.fn(original.render) }
+})
+
+afterEach(() => {
+  vi.mocked(renderPele).mockReset()
+})
 
 function getFirstTag(html: string, tagName: string): string {
   return html.match(new RegExp(`<${tagName}[^>]*>`))?.[0] ?? ''
@@ -69,25 +79,23 @@ describe('markdown -> html render (general)', () => {
   it('renders Mermaid blocks as sanitized rich SVG figures', async () => {
     const markdown = [
       '```mermaid',
-      'flowchart TD',
-      '  A[开始] --> B[结束]',
+      'sequenceDiagram',
+      '  开始->>结束: 提交',
       '```',
     ].join('\n')
 
     const html = await render({ markdown })
     const figureTag = getFirstTag(html, 'figure')
     const svgTag = getFirstTag(html, 'svg')
-    const markerTag = getFirstTag(html, 'marker')
 
     expect(figureTag).toContain('class="figure-mermaid"')
     expect(figureTag).toContain('data-bm-rich="mermaid"')
     expect(figureTag).toContain('data-bm-hash="')
-    expect(svgTag).toContain('role="img"')
+    expect(svgTag).toMatch(/role="[^"]+"/)
     expect(svgTag).not.toContain('data-bm-rich')
     expect(svgTag).toMatch(/width:100%;max-width:\d+(?:\.\d+)?px;height:auto;display:block;margin:0 auto;/)
-    expect(markerTag).toContain('id="bm-mermaid-')
     expect(html).not.toContain('@import')
-    expect(html).not.toContain('id="arrowhead"')
+    expect(html).toContain('class="pele-marker"')
   })
 
   it('injects the default markdown style font family into diagram SVGs', async () => {
@@ -100,23 +108,24 @@ describe('markdown -> html render (general)', () => {
       ].join('\n'),
     })
 
-    // 默认排版风格为 Kami（衬线类）：图表文字随文档字体族，库默认 Inter 不再控制输出
-    expect(html).toContain('text { font-family: serif;')
-    expect(html).not.toContain('\'Inter\'')
+    expect(getFirstTag(html, 'svg')).toContain('font-family:serif')
   })
 
-  it('keeps SVG ids unique for duplicated Mermaid blocks', async () => {
-    const block = [
-      '```mermaid',
-      'flowchart TD',
-      '  A --> B',
-      '```',
-    ].join('\n')
+  it('合成 SVG 经完整管道后 marker 引用闭合，多图 ID 互相隔离', async () => {
+    const mock = vi.mocked(renderPele)
+    const synthetic = '<svg width="200" height="100"><defs><marker id="tip"><path d="M0,0L8,4L0,8Z"/></marker></defs><path id="edge" d="M0,0L100,50" marker-end="url(#tip)"/></svg>'
+    const result = { ...renderPele('flowchart TD\n A --> B'), svg: synthetic }
+    mock.mockReturnValueOnce(result).mockReturnValueOnce(result)
+    const block = '```mermaid\nflowchart TD\n A --> B\n```'
     const html = await render({ markdown: `${block}\n\n${block}` })
-    const arrowheadIds = [...html.matchAll(/id="(bm-mermaid-[^"]+-arrowhead)"/g)].map(match => match[1])
-
-    expect(arrowheadIds).toHaveLength(2)
-    expect(new Set(arrowheadIds).size).toBe(2)
+    const ids = [...html.matchAll(/\bid="(bm-mermaid-[^"]+)"/g)].map(match => match[1])
+    const markers = [...html.matchAll(/<marker[^>]*id="([^"]+)"/g)].map(match => match[1])
+    const references = [...html.matchAll(/marker-end="url\(#([^)]+)\)"/g)].map(match => match[1])
+    expect(ids).toHaveLength(4)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(markers).toHaveLength(2)
+    expect(references).toHaveLength(2)
+    expect(references.every(id => markers.includes(id))).toBe(true)
   })
 
   it('does not render code blocks whose language only contains mermaid text', async () => {

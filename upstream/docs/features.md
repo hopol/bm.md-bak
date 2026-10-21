@@ -190,21 +190,21 @@ bmmd lint input.md --fix
 
 核心命令选项参考：
 
-| 选项旗标                     | 适用命令 | 默认值         | 功能说明                                           |
-| :--------------------------- | :------- | :------------- | :------------------------------------------------- |
-| `-o, --output <file>`        | 全部     | stdout         | 指定输出文件路径                                   |
-| `--platform <platform>`      | `render` | `html`         | 目标平台，可选 `html` 或 `wechat`                  |
-| `--markdown-style <id>`      | `render` | `kami`         | 指定 16 款排版样式 ID 之一                         |
-| `--code-theme <id>`          | `render` | `kimbie-light` | 指定 14 款代码高亮主题 ID 之一                     |
-| `--mermaid-theme <id>`       | `render` | 空（默认）     | 指定 Mermaid 图表配色主题                          |
-| `--infographic-theme <id>`   | `render` | `default`      | 信息图主题（`default`, `dark`, `hand-drawn`）      |
-| `--infographic-palette <id>` | `render` | `antv`         | 信息图调色板（`antv`, `spectral`）                 |
-| `--custom-css <css>`         | `render` | 空             | 传入内联自定义 CSS 字符串                          |
-| `--custom-css-file <file>`   | `render` | -              | 读取指定文件内容作为自定义 CSS                     |
-| `--breaks`                   | `render` | 关闭           | 将段落内软换行转换为 HTML `<br>`                   |
-| `--no-footnote-links`        | `render` | 开启           | 禁止自动将文中超链接转换为文末脚注                 |
-| `--no-open-links`            | `render` | 开启           | 禁止为外部链接附加 `target="_blank"`               |
-| `--fix`                      | `lint`   | 关闭           | 将规范修复结果直接写回原文件（与 `--output` 互斥） |
+| 选项旗标                     | 适用命令 | 默认值         | 功能说明                                                       |
+| :--------------------------- | :------- | :------------- | :------------------------------------------------------------- |
+| `-o, --output <file>`        | 全部     | stdout         | 指定输出文件路径                                               |
+| `--platform <platform>`      | `render` | `html`         | 目标平台，可选 `html` 或 `wechat`                              |
+| `--markdown-style <id>`      | `render` | `kami`         | 指定 16 款排版样式 ID 之一                                     |
+| `--code-theme <id>`          | `render` | `kimbie-light` | 指定 14 款代码高亮主题 ID 之一                                 |
+| `--mermaid-theme <id>`       | `render` | 空（默认）     | 指定 Mermaid 图表配色主题，可选空（默认浅色）或 `dark`（深色） |
+| `--infographic-theme <id>`   | `render` | `default`      | 信息图主题（`default`, `dark`, `hand-drawn`）                  |
+| `--infographic-palette <id>` | `render` | `antv`         | 信息图调色板（`antv`, `spectral`）                             |
+| `--custom-css <css>`         | `render` | 空             | 传入内联自定义 CSS 字符串                                      |
+| `--custom-css-file <file>`   | `render` | -              | 读取指定文件内容作为自定义 CSS                                 |
+| `--breaks`                   | `render` | 关闭           | 将段落内软换行转换为 HTML `<br>`                               |
+| `--no-footnote-links`        | `render` | 开启           | 禁止自动将文中超链接转换为文末脚注                             |
+| `--no-open-links`            | `render` | 开启           | 禁止为外部链接附加 `target="_blank"`                           |
+| `--fix`                      | `lint`   | 关闭           | 将规范修复结果直接写回原文件（与 `--output` 互斥）             |
 
 ### 2. REST API
 
@@ -282,7 +282,9 @@ status = "draft"
 
 ### 流程图与图表（Mermaid）
 
-将代码块语言标注为 `mermaid`，支持时序图、流程图、状态图、甘特图等，系统将其转换为经过安全清理的独立 SVG 矢量图像：
+代码块语言标注为 `mermaid` 时，系统基于 `pele` 1.6.0（[pele.run](https://pele.run)）渲染为经过安全清理与样式固化的独立 SVG 矢量图。支持流程图、时序图、状态图、甘特图、思维导图、饼图与 xychart 等 33 类官方图表（均完成基础渲染验证）。
+
+主题支持留空（默认浅色）与 `dark`（深色，带显式深色背景）。为保障渲染安全与性能，默认禁止图表外链与外部图片，单图限制输入不超过 50,000 字符、输出不超过 4,000,000 字符，流程图连线不超过 5,000 条。
 
 ```mermaid
 sequenceDiagram

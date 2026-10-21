@@ -3,7 +3,7 @@ import { usePreviewStore } from '@/stores/preview'
 import { mermaidThemes } from '@/themes/mermaid-theme'
 import { RadioDropdownMenu } from './radio-menu'
 
-const label = '流程图主题'
+const label = '图表主题'
 
 export function MermaidThemeMenu() {
   const currentTheme = usePreviewStore(state => state.mermaidTheme)

@@ -35,4 +35,10 @@ describe('markdown 工具 registry', () => {
 
     expect(input.markdownStyle).toBe(DEFAULT_MARKDOWN_STYLE_ID)
   })
+
+  it('mermaid 主题仅接受默认浅色与 dark，拒绝旧主题', () => {
+    expect(renderDefinition.inputSchema.parse({ markdown: '' }).mermaidTheme).toBe('')
+    expect(renderDefinition.inputSchema.parse({ markdown: '', mermaidTheme: 'dark' }).mermaidTheme).toBe('dark')
+    expect(renderDefinition.inputSchema.safeParse({ markdown: '', mermaidTheme: 'github-dark' }).success).toBe(false)
+  })
 })

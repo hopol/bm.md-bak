@@ -32,7 +32,7 @@ const dynamicOptimizeDeps = [
   '@antv/infographic',
   '@antv/infographic/ssr',
   '@zumer/snapdom',
-  'beautiful-mermaid',
+  'pele',
   '@paddleocr/paddleocr-js > @techstark/opencv-js',
   '@paddleocr/paddleocr-js > clipper-lib',
   'juice',

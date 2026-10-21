@@ -80,6 +80,27 @@ describe('markdown MCP server', () => {
     expect(structuredResult).toContain('标题')
   })
 
+  it.each(['', 'dark'])('通过 tools/call 真实渲染 Mermaid 主题 %s', async (mermaidTheme) => {
+    const response = await createMcpRequest(handler, {
+      jsonrpc: '2.0',
+      id: 20,
+      method: 'tools/call',
+      params: {
+        name: 'render',
+        arguments: { markdown: '```mermaid\nflowchart TD\nA[中文入口] --> B[完成]\n```', mermaidTheme, platform: 'wechat' },
+      },
+    })
+    const data = await readMcpJson<McpResult<CallToolResult>>(response)
+    const html = (data.result.structuredContent as { result: string }).result
+
+    expect(response.status).toBe(200)
+    expect(data.result.isError).not.toBe(true)
+    expect(html).toContain('<svg')
+    expect(html).toContain('中文入口')
+    expect(html).not.toContain('figure-mermaid-error')
+    expect(html).not.toMatch(/var\(|currentColor|color-mix\(/i)
+  })
+
   it('通过 tools/call 调用 extract 返回纯文本结果', async () => {
     const response = await createMcpRequest(handler, {
       jsonrpc: '2.0',

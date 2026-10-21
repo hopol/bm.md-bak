@@ -28,6 +28,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
@@ -39,6 +40,19 @@ jobs:
         run: pnpm build:cli
 
       - name: 发布新版本
-        uses: JS-DevTools/npm-publish@v4
-        with:
-          strategy: upgrade
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process'
+          import { readFileSync } from 'node:fs'
+
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
+          const registry = 'https://registry.npmjs.org'
+          const response = await fetch(`${registry}/${encodeURIComponent(name)}/${version}`)
+          if (response.status === 404) {
+            execFileSync('npm', ['publish', '--ignore-scripts', '--access', 'public', '--registry', registry], { stdio: 'inherit' })
+          } else if (response.ok) {
+            console.log(`${name}@${version} 已发布，跳过上传`)
+          } else {
+            throw new Error(`无法核对 npm 版本：HTTP ${response.status}`)
+          }
+          NODE

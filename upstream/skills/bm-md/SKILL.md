@@ -68,7 +68,7 @@ cat article.md | npx -y bmmd render --platform wechat > article.html
 | `markdown`             | string  | 是   | -              | Markdown 源文本，支持 GFM 语法、数学公式                              |
 | `markdownStyle`        | string  | 否   | `kami`         | 排版样式 ID，见下方完整列表                                           |
 | `codeTheme`            | string  | 否   | `kimbie-light` | 代码块高亮主题 ID，见下方完整列表                                     |
-| `mermaidTheme`         | string  | 否   | `""`           | Mermaid 流程图主题 ID，空字符串表示使用默认主题                       |
+| `mermaidTheme`         | string  | 否   | `""`           | Mermaid 图表主题 ID，可选空字符串 `""`（默认浅色）或 `"dark"`（深色） |
 | `infographicTheme`     | string  | 否   | `default`      | Infographic 信息图主题 ID                                             |
 | `infographicPalette`   | string  | 否   | `antv`         | Infographic 信息图配色 ID                                             |
 | `customCss`            | string  | 否   | `""`           | 自定义 CSS，选择器需约束在 `#bm-md` 下，如 `#bm-md h1 { color: red }` |

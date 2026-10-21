@@ -37,42 +37,8 @@ export function makeSvgResponsive(svgNode: Element, options: ResponsiveSvgOption
   svgNode.properties = props
 }
 
-/**
- * 匹配 SVG 内部 <style> 中 text 规则的 font-family 值。
- * beautiful-mermaid 输出形如 `text { font-family: 'Inter', system-ui, sans-serif; }`，
- * 只替换该规则的值，不触碰 .mono 等其他规则。
- */
-const TEXT_FONT_FAMILY_RULE = /(\btext\s*\{[^{}]*?font-family:)\s*([^;{}]+)/g
-
-/**
- * 将图表字体栈写入 SVG 内部 <style> 的 text 规则。
- * SVG 内部样式会随 Snapdom 克隆存活，而外部 CSS 继承不会，
- * 因此 PDF 导出也保持与屏幕一致的字体。仅在显式传入栈时生效。
- */
-export function applyDiagramFontFamily(svgNode: Element, fontFamily?: string): void {
-  if (!fontFamily) {
-    return
-  }
-  rewriteStyleFontFamily(svgNode, fontFamily)
-}
-
 export function applyRootFontFamily(svgNode: Element, fontFamily?: string): void {
   if (fontFamily) {
     svgNode.properties.fontFamily = fontFamily
-  }
-}
-
-function rewriteStyleFontFamily(node: Element, fontFamily: string): void {
-  for (const child of node.children) {
-    if (child.type === 'element') {
-      rewriteStyleFontFamily(child, fontFamily)
-      continue
-    }
-    if (child.type === 'text' && node.tagName.toLowerCase() === 'style') {
-      child.value = child.value.replace(
-        TEXT_FONT_FAMILY_RULE,
-        (_match, head: string, _value: string) => `${head} ${fontFamily}`,
-      )
-    }
   }
 }

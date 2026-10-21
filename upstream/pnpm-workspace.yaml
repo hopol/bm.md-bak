@@ -9,6 +9,9 @@ allowBuilds:
 
 catalogMode: manual
 
+minimumReleaseAgeExclude:
+  - pele@1.6.0
+
 overrides:
   glob: 11.1.0
   serialize-javascript: 7.0.5
